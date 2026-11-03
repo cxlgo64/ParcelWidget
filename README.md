@@ -12,6 +12,7 @@ A tiny always-on-top macOS desktop widget that finds tracking numbers in your Gm
 - Collapses to a single line when there are no packages
 - Screen-size presets (13" / 14" / 15" / 16" / external), pin on top, English / 中文
 - If parcelsapp blocks lookups, switch browser: Chrome, Edge, Brave, Chromium, Firefox or WebKit
+- Optional animated **skin**: a character stands behind the panel's corner as if holding it, and reacts to what happens
 
 ## Install
 Requires macOS and Python 3.9+.
@@ -28,6 +29,36 @@ Then open ⚙ in the widget and enter your Gmail address and an
 
 - Start manually: `./start.command`
 - Remove auto-start: `./uninstall_autostart.command`
+
+## Skins
+A skin is a folder in `ui/skins/<id>/` with a sprite sheet and a `skin.json` describing it:
+
+```json
+{
+  "name": "My Character", "sheet": "sheet.png", "thumb": "thumb.png",
+  "cell": [192, 208],          // size of one frame in the sheet
+  "display_height": 116,       // on-screen height (before the screen-size zoom)
+  "hand_y": 0.62,              // panel bottom sits at this fraction of her height
+  "overlap": 0.36,             // how far she tucks behind the panel corner
+  "anims": { "idle": {"row": 0, "frames": [0], "fps": 4, "loop": true}, ... }
+}
+```
+
+Animations the widget uses: `idle`, `blink`, `fidget`, `walk_left`, `walk_right`, `wave`, `jump`,
+`doze`, `sleep`, `wake`, `cheer`, `think`, `shy`, `look_left`, `look_right`, `look_around`
+(missing ones are simply skipped).
+
+| When | She… |
+|---|---|
+| Idle | blinks, fidgets, looks around, peeks at the panel |
+| Mouse over the panel | turns to read it with you |
+| Refreshing | thinks |
+| New package / delivered | cheers / jumps + cheers, with a speech bubble |
+| Click her | waves, jumps or gets shy, and gives a summary |
+| Dragging the window | runs in the drag direction |
+| 5 min without mouse activity | dozes off; move the mouse to wake her |
+
+> Only commit skin artwork you have the rights to share.
 
 ## Privacy
 - Your Gmail app password is stored in the **macOS Keychain**, never in a file.

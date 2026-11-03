@@ -36,7 +36,27 @@ DEFAULT_CONFIG = {
     "always_on_top": False,
     "size_preset": "14",
     "lang": "en",
+    "skin": "whale-maid",    # folder name under ui/skins, "" = no skin
+    "skin_side": "right",    # which side of the panel the character stands on
 }
+SKINS_DIR = os.path.join(HERE, "ui", "skins")
+
+
+def list_skins():
+    """Every folder in ui/skins that has a skin.json is a skin."""
+    out = []
+    if os.path.isdir(SKINS_DIR):
+        for d in sorted(os.listdir(SKINS_DIR)):
+            p = os.path.join(SKINS_DIR, d, "skin.json")
+            if os.path.isfile(p):
+                try:
+                    with open(p, encoding="utf-8") as f:
+                        m = json.load(f)
+                    m["id"] = d
+                    out.append(m)
+                except Exception as e:
+                    log("bad skin %s: %r" % (d, e))
+    return out
 
 # window width (px), max height (px) and UI zoom per screen size
 SIZE_PRESETS = {
@@ -259,7 +279,29 @@ class Api:
             "max_h": preset(c)["h"],
             "presets": [{"key": k, "label": v["label"]} for k, v in SIZE_PRESETS.items()],
             "lang": c.get("lang", "en"),
+            "base_w": preset(c)["w"],
+            "skin": self._skin(),
+            "skin_side": c.get("skin_side", "right"),
         }
+
+    def _skin(self):
+        sid = self.e.cfg.get("skin") or ""
+        for s in list_skins():
+            if s["id"] == sid:
+                return s
+        return None
+
+    def get_skins(self):
+        return [{"id": s["id"], "name": s.get("name", s["id"]), "name_zh": s.get("name_zh", ""),
+                 "thumb": s.get("thumb", "")} for s in list_skins()]
+
+    def set_skin(self, skin_id, side=None):
+        c = self.e.cfg
+        c["skin"] = skin_id or ""
+        if side in ("left", "right"):
+            c["skin_side"] = side
+        save_config(c)
+        return {"skin": self._skin(), "skin_side": c["skin_side"]}
 
     def get_archived(self):
         return self.e.db.archived()
@@ -343,14 +385,16 @@ class Api:
         self.e.cfg["size_preset"] = key
         save_config(self.e.cfg)
         p = SIZE_PRESETS[key]
-        return {"zoom": p["zoom"], "max_h": p["h"]}
+        return {"zoom": p["zoom"], "max_h": p["h"], "base_w": p["w"]}
 
     # ---------- window ----------
-    def fit(self, css_height):
-        """Resize the window so it is exactly as tall as the content (up to the preset max)."""
+    def fit(self, css_width, css_height):
+        """Resize the window to the page's layout size (CSS px x zoom). The page already
+        caps the panel height by the preset; the character can add a bit on top."""
         p = preset(self.e.cfg)
-        h = int(min(p["h"], max(30, round(float(css_height) * p["zoom"]))))
-        w = p["w"]
+        z = p["zoom"]
+        h = int(min(p["h"] * 1.6, max(30, round(float(css_height) * z))))
+        w = int(min(p["w"] * 2, max(150, round(float(css_width) * z))))
 
         def do():
             win = self.e.window
@@ -412,7 +456,7 @@ def main():
         frameless=True,
         easy_drag=False,
         on_top=bool(engine.cfg.get("always_on_top")),
-        background_color="#1c1c1e",
+        transparent=True,        # lets the character stand outside the panel
     )
     engine.window = win
     threading.Thread(target=engine.loop, daemon=True).start()

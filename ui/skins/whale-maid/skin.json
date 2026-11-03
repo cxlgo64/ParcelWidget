@@ -1,0 +1,28 @@
+{
+  "name": "Whale Maid",
+  "name_zh": "鲸鱼女仆",
+  "sheet": "sheet.png",
+  "thumb": "thumb.png",
+  "cell": [192, 208],
+  "display_height": 116,
+  "hand_y": 0.62,
+  "overlap": 0.36,
+  "anims": {
+    "idle":        {"row": 0, "frames": [0], "fps": 4, "loop": true},
+    "blink":       {"row": 0, "frames": [1, 2, 3, 2, 1, 0], "fps": 14},
+    "fidget":      {"row": 0, "frames": [4, 5, 6, 5, 4, 0], "fps": 6},
+    "walk_right":  {"row": 1, "frames": [0, 1, 2, 3, 4, 5, 6, 7], "fps": 12, "loop": true},
+    "walk_left":   {"row": 2, "frames": [0, 1, 2, 3, 4, 5, 6, 7], "fps": 12, "loop": true},
+    "wave":        {"row": 3, "frames": [0, 1, 2, 3, 2, 1, 2, 3, 2, 0], "fps": 8},
+    "jump":        {"row": 4, "frames": [0, 1, 2, 2, 3, 4], "fps": 10},
+    "doze":        {"row": 5, "frames": [0, 1, 2, 3], "fps": 4},
+    "sleep":       {"row": 5, "frames": [3, 4, 5, 4], "fps": 1.5, "loop": true},
+    "wake":        {"row": 5, "frames": [6, 7, 0], "fps": 6},
+    "cheer":       {"row": 6, "frames": [0, 1, 2, 3, 3, 3, 2, 4, 5, 0], "fps": 8},
+    "think":       {"row": 7, "frames": [0, 1, 2, 3, 4, 5, 4, 3], "fps": 3, "loop": true},
+    "shy":         {"row": 8, "frames": [0, 1, 2, 3, 4, 5, 0], "fps": 6},
+    "look_right":  {"row": 9, "frames": [0, 1, 2, 3], "fps": 12, "hold": true},
+    "look_left":   {"row": 10, "frames": [0, 1, 2, 3, 4], "fps": 12, "hold": true},
+    "look_around": {"row": 10, "frames": [0, 1, 2, 3, 4, 4, 5, 6, 7, 7, 0], "fps": 6}
+  }
+}

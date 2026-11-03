@@ -16,13 +16,43 @@
   }
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(--text);
   font:13px/1.35 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
   -webkit-user-select:none;user-select:none}
 /* whole UI scales with the screen-size preset (--z) */
 #root{--z:.78;position:relative;transform-origin:0 0;transform:scale(var(--z));
   width:calc(100% / var(--z));height:calc(100% / var(--z))}
-.app{display:flex;flex-direction:column;height:100%}
+#stage{position:relative;width:100%;height:100%}
+/* the panel: fills the window without a skin; with a skin it sits at the character's hand height */
+.app{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);
+  border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.skinned .app{inset:auto;top:auto}
+.skinned.side-right .app{left:0}
+.skinned.side-left .app{right:0}
+
+/* ---- skin character ---- */
+/* she stands just behind the panel's corner, so the panel looks held in her hands and no UI is covered */
+#pet{position:absolute;bottom:0;display:none;pointer-events:none;z-index:1}
+.app{z-index:2}
+.skinned #pet{display:block}
+.side-right #pet{right:0}
+.side-left #pet{left:0}
+#sprite{position:absolute;inset:0;background-repeat:no-repeat;image-rendering:auto;
+  filter:drop-shadow(0 2px 3px #0005)}
+#hit{position:absolute;left:22%;right:22%;top:4%;bottom:2%;pointer-events:auto;cursor:pointer}
+#bubble{position:absolute;max-width:190px;padding:6px 9px;border-radius:12px;background:var(--card);color:var(--text);
+  border:1px solid var(--line);box-shadow:0 2px 8px #0004;font-size:12px;line-height:1.3;pointer-events:none;z-index:6;
+  opacity:0;transform:translateY(4px) scale(.96);transition:opacity .18s,transform .18s;white-space:normal}
+#bubble.show{opacity:1;transform:none}
+#bubble::after{content:"";position:absolute;bottom:8px;width:10px;height:10px;background:var(--card);
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.side-right #bubble::after{right:-6px;transform:rotate(-45deg)}
+.side-left #bubble::after{left:-6px;transform:rotate(135deg)}
+.skinrow{display:flex;gap:6px;margin-top:2px}
+.skinopt{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:8px;
+  border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:11px;color:var(--muted)}
+.skinopt.on{border-color:var(--accent);color:var(--text);font-weight:600}
+.skinopt .th{width:30px;height:32px;background:center/contain no-repeat;display:grid;place-items:center;font-size:16px}
 
 header{display:flex;align-items:center;gap:1px;padding:6px 6px 6px 10px;cursor:grab;flex:none}
 header.dragging{cursor:grabbing}
@@ -98,6 +128,7 @@ header .sub{color:var(--muted);font-weight:400}
 </head>
 <body>
 <div id="root">
+<div id="stage">
 <div class="app" id="main">
   <header id="mainHeader">
     <h1 id="title"></h1>
@@ -114,9 +145,9 @@ header .sub{color:var(--muted);font-weight:400}
     <button class="btn" id="addBtn" onclick="addManual()"></button>
   </div>
   <div class="list" id="list"></div>
-</div>
 
 <!-- Settings -->
+<!-- (panels live inside the app box so the character stays visible beside them) -->
 <div class="panel" id="settings">
   <header><h1 data-t="settings"></h1><button class="icon" onclick="closePanel()">✕</button></header>
   <div class="content">
@@ -126,6 +157,11 @@ header .sub{color:var(--muted);font-weight:400}
     <div class="section" data-t="screenSize"></div>
     <div class="seg" id="sizeSeg"></div>
     <div class="hint" data-t="screenSizeHint"></div>
+
+    <div class="section" data-t="skin"></div>
+    <div class="skinrow" id="skinRow"></div>
+    <div class="seg" id="sideSeg" style="margin-top:6px"></div>
+    <div class="hint" data-t="skinHint"></div>
 
     <div class="linkrow" onclick="openPanel('archive')"><span data-t="archived"></span><span id="archCount" class="meta">›</span></div>
 
@@ -160,7 +196,12 @@ header .sub{color:var(--muted);font-weight:400}
 </div>
 
 <div class="toast" id="toast"></div>
-</div>
+</div><!-- /.app -->
+
+<div id="pet"><div id="sprite"></div><div id="hit" title=""></div></div>
+<div id="bubble"></div>
+</div><!-- /#stage -->
+</div><!-- /#root -->
 
 <script>
 /* ---------------- i18n ---------------- */
@@ -200,6 +241,17 @@ const I18N = {
       failed:a=>`Lookup failed: ${a}`,
     },
     manual:'Added manually',
+    skin:'Skin', skinHint:'Add your own: drop a folder with skin.json + sheet.png into ui/skins.', noSkin:'None', sideLeft:'Stand on left', sideRight:'Stand on right',
+    pet:{
+      hello:['Hi! I\'ll keep an eye on your packages.','Good to see you!'],
+      summary:(n,d)=> n ? `${n} package${n>1?'s':''} on the way${d?`, ${d} delivered!`:'.'}` : 'No packages right now. Relaxing~',
+      poke:['Hehe, that tickles!','Need something?','I\'m watching them, promise!','♪～'],
+      newPkg:n=>`Found ${n} new package${n>1?'s':''}!`,
+      delivered:c=>`Your ${c} package was delivered! 🎉`,
+      bye:['Got it. Bye-bye, package!','Archived ✓'],
+      checking:'Let me check…', blocked:'Hmm, parcelsapp won\'t let me in. Try another browser in ⚙?',
+      sleep:'zzz…', wake:'Oh! I wasn\'t sleeping!',
+    },
   },
   zh: {
     appName:'快递', noPackages:'暂无快递', delivered:'已送达',
@@ -236,6 +288,17 @@ const I18N = {
       failed:a=>`查询失败：${a}`,
     },
     manual:'手动添加',
+    skin:'皮肤', skinHint:'添加自己的皮肤：把包含 skin.json + sheet.png 的文件夹放进 ui/skins。', noSkin:'无', sideLeft:'站在左边', sideRight:'站在右边',
+    pet:{
+      hello:['你好呀！快递交给我盯着～','欢迎回来！'],
+      summary:(n,d)=> n ? `有 ${n} 个快递在路上${d?`，${d} 个已经到啦！`:'。'}` : '现在没有快递，摸鱼中～',
+      poke:['嘿嘿，好痒～','有什么吩咐？','我一直在看着呢！','♪～'],
+      newPkg:n=>`发现 ${n} 个新快递！`,
+      delivered:c=>`你的 ${c} 快递送到啦！🎉`,
+      bye:['好的，拜拜～','已归档 ✓'],
+      checking:'我去查一下…', blocked:'唔，parcelsapp 不让我进…去 ⚙ 换个浏览器试试？',
+      sleep:'zzz…', wake:'诶！我、我没睡着！',
+    },
   },
 };
 let lang = 'en';
@@ -328,28 +391,49 @@ function render(){
   fitSoon();
 }
 
-/* window height follows content: one line when empty, capped by the screen-size preset */
-let fitTimer = null, lastFit = 0;
+/* ---------------- layout ----------------
+   The window follows the content: one line when empty, capped by the screen-size preset.
+   With a skin, the panel's bottom edge sits at the character's hand height so it looks
+   like she is holding it, and the window grows to fit her. */
+let fitTimer = null, lastFit = '';
 function fitSoon(){ clearTimeout(fitTimer); fitTimer = setTimeout(fit, 30); }
-function fit(){
-  if(!window.pywebview) return;
-  let h;
-  if(openPanelId){ h = 10000; }                  // panels use the full preset height
-  else {
-    const m = $('main');
-    h = 0; for(const el of m.children){ if(el.offsetParent !== null || el === m.firstElementChild) h += el.offsetHeight; }
-    const list = $('list');
-    h += Math.max(0, list.scrollHeight - list.offsetHeight) + 2;  // full content, not the clipped box
+function contentHeight(){
+  let h = 0;
+  for(const id of ['mainHeader','statusLine','addRow','list']){
+    const el = $(id); if(el.offsetParent !== null || id === 'mainHeader') h += el.offsetHeight;
   }
-  if(Math.abs(h - lastFit) < 1) return;
-  lastFit = h; api().fit(h);
+  const list = $('list');
+  return h + Math.max(0, list.scrollHeight - list.offsetHeight) + 2;  // full content, not the clipped box
+}
+function fit(){
+  if(!window.pywebview || !state.zoom) return;
+  const z = state.zoom, maxTotal = state.max_h / z, PW = state.base_w / z;
+  const app = $('main'), sk = pet.skin;
+  let W, H;
+  if(!sk){
+    app.style.width = app.style.height = app.style.bottom = '';
+    W = PW; H = openPanelId ? maxTotal : Math.min(contentHeight(), maxTotal);
+  } else {
+    const {w: SW, h: SH, hand, over} = pet.box;
+    const ph = openPanelId ? maxTotal - hand : Math.min(contentHeight(), maxTotal - hand);
+    app.style.width = PW + 'px'; app.style.height = ph + 'px'; app.style.bottom = hand + 'px';
+    // keep some headroom above her head for the speech bubble when the panel is short
+    W = PW + SW - over; H = Math.max(ph + hand, SH + 34);
+  }
+  pet.place();
+  const key = Math.round(W) + 'x' + Math.round(H);
+  if(key === lastFit) return;
+  lastFit = key; api().fit(W, H);
 }
 
 async function load(){
+  const prev = state;
   state = await api().get_state();
   if(state.lang && state.lang !== lang){ lang = state.lang; applyStaticText(); }
   setZoom(state.zoom);
+  pet.setSkin(state.skin, state.skin_side);
   render();
+  pet.onState(prev, state);
 }
 window.onBackendUpdate = () => load();
 function setZoom(z){ if(z) $('root').style.setProperty('--z', z); }
@@ -357,8 +441,12 @@ function setZoom(z){ if(z) $('root').style.setProperty('--z', z); }
 /* ---------------- actions ---------------- */
 function toggleExpand(){ expanded = !expanded; render(); }
 function copyNum(n){ navigator.clipboard?.writeText(n).then(()=>toast(T().copied), ()=>{}); }
-async function confirmItem(n){ await api().confirm(n); toast(T().archivedToast); load(); }
-async function refreshAll(){ await api().refresh_now(); state.busy = true; render(); }
+async function confirmItem(n){
+  await api().confirm(n);
+  if(pet.skin){ pet.play('wave'); pet.say(pick(T().pet.bye)); } else toast(T().archivedToast);
+  load();
+}
+async function refreshAll(){ await api().refresh_now(); state.busy = true; render(); if(pet.skin) pet.say(T().pet.checking, 1800); }
 async function refreshOne(n){ await api().refresh_one(n); state.refreshing = [...(state.refreshing||[]), n]; render(); }
 async function togglePin(){
   state.on_top = await api().set_on_top(!state.on_top);
@@ -380,13 +468,13 @@ async function addManual(){
 /* ---------------- panels ---------------- */
 async function openPanel(id){
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('show', p.id === id));
-  openPanelId = id; lastFit = 0; fit();
+  openPanelId = id; lastFit = ''; fit();
   if(id === 'settings') await fillSettings();
   if(id === 'archive') await fillArchive();
 }
 function closePanel(){
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('show'));
-  openPanelId = null; lastFit = 0; fitSoon();
+  openPanelId = null; lastFit = ''; fitSoon();
 }
 function seg(el, opts, cur, fn){
   $(el).innerHTML = opts.map(o => `<button class="${o.key===cur?'on':''}" onclick="${fn}('${o.key}')">${esc(o.label)}</button>`).join('');
@@ -403,11 +491,32 @@ async function fillSettings(){
   $('pwHint').textContent = (s.has_password ? L.pwSaved : '') + L.pwHint;
   const arch = await api().get_archived();
   $('archCount').textContent = (arch.length ? arch.length + ' ' : '') + '›';
+  await fillSkins();
 }
 async function pickLang(k){ lang = await api().set_lang(k); applyStaticText(); fillSettings(); render(); }
 async function pickSize(k){
   const r = await api().set_size(k);
-  if(r){ state.size_preset = k; state.zoom = r.zoom; setZoom(r.zoom); lastFit = 0; fit(); fillSettings(); }
+  if(r){ Object.assign(state, {size_preset:k, zoom:r.zoom, max_h:r.max_h, base_w:r.base_w}); setZoom(r.zoom); lastFit = ''; fit(); fillSettings(); }
+}
+async function fillSkins(){
+  const L = T(), skins = await api().get_skins(), cur = pet.skin ? pet.skin.id : '';
+  $('skinRow').innerHTML = [{id:'', name:L.noSkin}, ...skins].map(s => {
+    const label = esc(lang==='zh' && s.name_zh ? s.name_zh : s.name);
+    const th = s.thumb ? `style="background-image:url('skins/${encodeURIComponent(s.id)}/${encodeURIComponent(s.thumb)}')"` : '';
+    return `<div class="skinopt ${s.id===cur?'on':''}" onclick="pickSkin('${esc(s.id)}')"><div class="th" ${th}>${s.thumb?'':'∅'}</div>${label}</div>`;
+  }).join('');
+  seg('sideSeg', [{key:'left',label:L.sideLeft},{key:'right',label:L.sideRight}], state.skin_side, 'pickSide');
+  $('sideSeg').style.display = cur ? '' : 'none';
+}
+async function pickSkin(id){
+  const r = await api().set_skin(id, null);
+  state.skin = r.skin; state.skin_side = r.skin_side;
+  pet.setSkin(r.skin, r.skin_side); lastFit = ''; fit(); fillSkins();
+  if(r.skin){ pet.play('jump'); pet.say(pick(T().pet.hello)); }
+}
+async function pickSide(side){
+  const r = await api().set_skin(pet.skin ? pet.skin.id : '', side);
+  state.skin_side = r.skin_side; pet.setSkin(r.skin, r.skin_side); lastFit = ''; fit(); fillSkins();
 }
 async function saveSettings(){
   await api().save_settings({
@@ -428,25 +537,221 @@ async function fillArchive(){
 }
 async function restore(n){ await api().unarchive(n); fillArchive(); load(); }
 
+/* ---------------- skin character ----------------
+   Behaviour:
+   - stands beside the panel; the panel's bottom edge is at her hands, as if she holds it
+   - idle: blinks, fidgets, glances around, sometimes peeks at the panel
+   - mouse over the panel: she turns to read it with you
+   - refreshing: thinking pose; new package: cheer; delivered: jump + cheer
+   - click her: wave / jump / shy and tell you a summary
+   - dragging the window: she runs in the drag direction
+   - no mouse activity for 5 min: dozes off; move the mouse to wake her */
+const pick = a => Array.isArray(a) ? a[Math.floor(Math.random() * a.length)] : a;
+const SLEEP_AFTER_MS = 5 * 60 * 1000;
+const pet = {
+  skin: null, side: 'right', box: {w:0, h:0, hand:0, over:0}, scale: 1,
+  cur: null, timer: null, looking: false, sleeping: false, walking: null,
+  lastActive: Date.now(), greeted: false, bubbleTimer: null, idleTimer: null, clicks: 0,
+
+  setSkin(sk, side){
+    side = side === 'left' ? 'left' : 'right';
+    const id = sk ? sk.id : '';
+    if(id === (this.skin ? this.skin.id : '') && side === this.side) return;
+    this.skin = sk; this.side = side;
+    const stage = $('stage');
+    stage.classList.toggle('skinned', !!sk);
+    stage.classList.toggle('side-left', side === 'left');
+    stage.classList.toggle('side-right', side !== 'left');
+    clearTimeout(this.timer); clearTimeout(this.idleTimer); this.cur = null;
+    if(!sk){ this.hideBubble(); return; }
+    const [cw, ch] = sk.cell, H = sk.display_height || 116, s = H / ch, W = cw * s;
+    this.scale = s;
+    this.box = {w: W, h: H, hand: H * (1 - (sk.hand_y ?? 0.62)), over: W * (sk.overlap ?? 0.24)};
+    $('pet').style.width = W + 'px'; $('pet').style.height = H + 'px';
+    const url = `skins/${encodeURIComponent(sk.id)}/${encodeURIComponent(sk.sheet)}`, sp = $('sprite');
+    sp.style.backgroundImage = `url('${url}')`;
+    const img = new Image();
+    img.onload = () => { sp.style.backgroundSize = `${img.naturalWidth * s}px ${img.naturalHeight * s}px`; };
+    img.src = url;
+    this.toBase(); this.scheduleIdle();
+  },
+
+  /* ---- animation player ---- */
+  frame(row, col){
+    const [cw, ch] = this.skin.cell, s = this.scale;
+    $('sprite').style.backgroundPosition = `-${col * cw * s}px -${row * ch * s}px`;
+  },
+  play(name, then, frames){
+    if(!this.skin) return;
+    const a = this.skin.anims[name];
+    if(!a){ then ? then() : this.toBase(); return; }
+    clearTimeout(this.timer);
+    this.cur = {name, a, seq: frames || a.frames, i: 0, then};
+    this.tick();
+  },
+  tick(){
+    const c = this.cur; if(!c) return;
+    this.frame(c.a.row, c.seq[c.i]);
+    const dt = 1000 / (c.a.fps || 8);
+    c.i++;
+    if(c.i >= c.seq.length){
+      if(c.a.loop) c.i = 0;
+      else if(c.a.hold && !c.then) return;            // stay on the last frame
+      else { this.timer = setTimeout(() => { const t = c.then; this.cur = null; t ? t() : this.toBase(); }, dt); return; }
+    }
+    this.timer = setTimeout(() => this.tick(), dt);
+  },
+  isBase(){ return !this.cur || ['idle','think','sleep'].includes(this.cur.name) || this.cur.base; },
+  lookAnim(){ return this.side === 'right' ? 'look_left' : 'look_right'; },  // face the panel
+  toBase(){
+    if(!this.skin) return;
+    if(this.walking) return this.play('walk_' + this.walking);
+    if(this.sleeping) return this.play('sleep');
+    if(state.busy) return this.play('think');
+    if(this.looking){ this.play(this.lookAnim()); this.cur.base = true; return; }
+    this.play('idle');
+  },
+  // one-shot reactions; base poses (idle/think/sleep/look) resume afterwards
+  react(name, line, ms){
+    if(!this.skin) return;
+    if(this.sleeping) this.sleeping = false;
+    this.play(name);
+    if(line) this.say(line, ms);
+  },
+
+  /* ---- idle variety ---- */
+  scheduleIdle(){
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => { this.idleAct(); this.scheduleIdle(); }, 2500 + Math.random() * 4000);
+  },
+  idleAct(){
+    if(!this.skin || this.sleeping || this.walking || this.looking || state.busy || !this.isBase()) return;
+    const r = Math.random();
+    if(r < .55) this.play('blink');
+    else if(r < .70) this.play('fidget');
+    else if(r < .82){                                   // peek at the panel, then look back
+      const look = this.lookAnim(), f = this.skin.anims[look].frames;
+      this.play(look, () => setTimeout(() => this.play(look, () => this.toBase(), [...f].reverse()), 1200));
+    }
+    else if(r < .94) this.play('look_around');
+    else this.play('shy');
+  },
+
+  /* ---- events ---- */
+  onState(prev, cur){
+    if(!this.skin) return;
+    const L = T().pet, items = cur.items || [], before = prev.items;
+    if(!this.greeted){
+      this.greeted = true;
+      this.play('jump', () => { this.play('wave'); });
+      this.say(pick(L.hello)); return;
+    }
+    if(!before) return;
+    const was = Object.fromEntries(before.map(i => [i.number, i]));
+    const fresh = items.filter(i => !was[i.number]);
+    const delivered = items.filter(i => i.delivered && was[i.number] && !was[i.number].delivered);
+    const blocked = items.find(i => (i.error === 'blocked' || i.error === 'no_data') && (!was[i.number] || was[i.number].error !== i.error));
+    if(delivered.length){
+      this.sleeping = false;
+      this.play('jump', () => this.play('cheer'));
+      this.say(L.delivered(delivered[0].carrier || ''), 5000);
+    } else if(fresh.length){
+      this.react('cheer', L.newPkg(fresh.length));
+    } else if(blocked){
+      this.react('shy', L.blocked, 5000);
+    } else if(!!prev.busy !== !!cur.busy && this.isBase()){
+      this.toBase();
+    }
+    const m = cur.message, pm = prev.message;
+    if(m && m.code && (!pm || pm.code !== m.code) && !['checking','reading_gmail'].includes(m.code)) this.say(msgText(m), 4500);
+  },
+  click(){
+    const L = T().pet, items = state.items || [];
+    if(this.sleeping){ this.wake(); return; }
+    this.clicks++;
+    const line = this.clicks % 2 ? L.summary(items.length, items.filter(i => i.delivered).length) : pick(L.poke);
+    this.react(pick(['wave','jump','shy','cheer']), line);
+  },
+  hoverPanel(on){
+    if(!this.skin || this.looking === on) return;
+    this.looking = on;
+    if(this.sleeping || this.walking || !this.isBase()) return;
+    const look = this.lookAnim();
+    if(on){ this.play(look); this.cur.base = true; }
+    else this.play(look, () => this.toBase(), [...this.skin.anims[look].frames].reverse());
+  },
+  walk(dir){
+    if(!this.skin || this.walking === dir) return;
+    this.walking = dir; this.sleeping = false; this.play('walk_' + dir);
+  },
+  stopWalk(){ if(this.walking){ this.walking = null; this.toBase(); } },
+  activity(){
+    this.lastActive = Date.now();
+    if(this.sleeping) this.wake();
+  },
+  wake(){
+    this.sleeping = false;
+    this.play('wake', () => this.play('wave'));
+    this.say(T().pet.wake, 2500);
+  },
+  checkSleep(){
+    if(!this.skin || this.sleeping || state.busy || this.walking) return;
+    if(Date.now() - this.lastActive > SLEEP_AFTER_MS){
+      this.sleeping = true; this.hideBubble();
+      this.play('doze', () => { this.play('sleep'); this.say(T().pet.sleep, 2500); });
+    }
+  },
+
+  /* ---- speech bubble, next to her head ---- */
+  place(){
+    const b = $('bubble'), {w, h} = this.box;
+    b.style.bottom = (h * 0.74) + 'px';
+    b.style.left = b.style.right = '';
+    if(this.side === 'right') b.style.right = (w * 0.70) + 'px'; else b.style.left = (w * 0.70) + 'px';
+  },
+  say(text, ms = 3500){
+    if(!this.skin || !text) return;
+    const b = $('bubble'); this.place();
+    b.textContent = text; b.classList.add('show');
+    clearTimeout(this.bubbleTimer);
+    this.bubbleTimer = setTimeout(() => this.hideBubble(), ms);
+  },
+  hideBubble(){ $('bubble').classList.remove('show'); },
+};
+$('main').addEventListener('mouseenter', () => pet.hoverPanel(true));
+$('main').addEventListener('mouseleave', () => pet.hoverPanel(false));
+document.addEventListener('mousemove', () => pet.activity(), {passive: true});
+setInterval(() => pet.checkSleep(), 15000);
+
 /* ---------------- dragging ----------------
-   Move by the mouse delta from where the drag started, instead of absolute
-   coordinates (which jump on multi-display / scaled setups). */
+   Drag the header (or the character) to move the window. Moves by the mouse delta from
+   where the drag started instead of absolute coordinates, which jump on multi-display /
+   scaled setups. A press on the character without movement counts as a click. */
 let drag = null;
 document.addEventListener('mousedown', async e => {
-  const h = e.target.closest('header');
-  if(!h || e.button !== 0 || e.target.closest('button,input,select')) return;
+  if(e.button !== 0) return;
+  const h = e.target.closest('header'), onPet = e.target.id === 'hit';
+  if(!onPet && (!h || e.target.closest('button,input,select'))) return;
   e.preventDefault();
-  const d = drag = {sx:e.screenX, sy:e.screenY, pos:null, target:null, busy:false, header:h};
-  h.classList.add('dragging');
+  const d = drag = {sx:e.screenX, sy:e.screenY, lx:e.screenX, pos:null, target:null, busy:false, el:h || $('hit'), onPet, moved:0};
+  d.el.classList.add('dragging');
   d.pos = await api().get_pos();
   pump(d);
 });
 document.addEventListener('mousemove', e => {
   if(!drag) return;
   drag.target = [e.screenX - drag.sx, e.screenY - drag.sy];
+  drag.moved = Math.max(drag.moved, Math.abs(drag.target[0]) + Math.abs(drag.target[1]));
+  const step = e.screenX - drag.lx;
+  if(Math.abs(step) >= 2){ pet.walk(step > 0 ? 'right' : 'left'); drag.lx = e.screenX; }
   pump(drag);
 });
-document.addEventListener('mouseup', () => { if(drag){ drag.header.classList.remove('dragging'); pump(drag); drag = null; } });
+document.addEventListener('mouseup', () => {
+  if(!drag) return;
+  const d = drag; drag = null;
+  d.el.classList.remove('dragging'); pump(d); pet.stopWalk();
+  if(d.onPet && d.moved < 4) pet.click();
+});
 async function pump(d = drag){
   if(!d || !d.pos || !d.target || d.busy) return;
   const [dx, dy] = d.target; d.target = null; d.busy = true;
