@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# local data (the app stores real data in ~/Library/Application Support/ParcelWidget)
+*.db
+*.log
+config.json
+browser-profile/
+
+# macOS
+.DS_Store

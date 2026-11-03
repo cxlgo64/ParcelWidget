@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Parcel Widget</title>
+<style>
+:root{
+  --bg:#f5f5f7; --card:#ffffff; --text:#1d1d1f; --muted:#6e6e73; --line:#e3e3e8;
+  --accent:#0a84ff; --green:#e6f6ea; --green-line:#34c759; --green-text:#1b7f3b;
+  --err:#c4372c; --chip:#ececf1;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1c1c1e; --card:#2c2c2e; --text:#f2f2f7; --muted:#9a9aa0; --line:#3a3a3c;
+    --green:#183a24; --green-line:#30d158; --green-text:#7ee29a; --err:#ff6b5e; --chip:#3a3a3c;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font:13px/1.35 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+  -webkit-user-select:none;user-select:none}
+/* whole UI scales with the screen-size preset (--z) */
+#root{--z:.78;position:relative;transform-origin:0 0;transform:scale(var(--z));
+  width:calc(100% / var(--z));height:calc(100% / var(--z))}
+.app{display:flex;flex-direction:column;height:100%}
+
+header{display:flex;align-items:center;gap:1px;padding:6px 6px 6px 10px;cursor:grab;flex:none}
+header.dragging{cursor:grabbing}
+header h1{font-size:13px;font-weight:600;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .sub{color:var(--muted);font-weight:400}
+.badge{display:inline-block;min-width:16px;padding:0 5px;margin-left:4px;border-radius:8px;background:var(--chip);
+  color:var(--text);font-size:11px;font-weight:600;text-align:center;line-height:16px}
+.badge.green{background:var(--green-line);color:#fff}
+.icon{border:0;background:transparent;color:var(--muted);width:22px;height:22px;border-radius:6px;padding:0;
+  cursor:pointer;font-size:13px;display:grid;place-items:center;flex:none}
+.icon:hover{background:var(--chip);color:var(--text)}
+.icon:disabled{cursor:default;opacity:.7}
+.icon.on{background:var(--chip);color:var(--accent)}
+.pin{font-size:11px;filter:grayscale(1);opacity:.45}
+.pin.on{filter:none;opacity:1}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.status-line{padding:0 10px 5px;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}
+.status-line:empty{display:none}
+.add{display:none;gap:5px;padding:0 8px 6px;flex:none}
+.add.show{display:flex}
+.add input{flex:1;min-width:0;border:1px solid var(--line);background:var(--card);color:var(--text);
+  border-radius:7px;padding:5px 7px;font-size:12px;-webkit-user-select:text;user-select:text}
+.btn{border:0;background:var(--accent);color:#fff;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer}
+.btn.ghost{background:var(--chip);color:var(--text)}
+
+/* list sizes to its content so the window can shrink to fit */
+.list{flex:0 1 auto;min-height:0;overflow-y:auto;padding:0 8px 2px}
+.list:empty{display:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:6px 8px;margin-bottom:5px}
+.card.delivered{background:var(--green);border-color:var(--green-line)}
+.row{display:flex;align-items:center;gap:5px;min-width:0}
+.carrier{font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:4px;background:var(--chip);color:var(--text);flex:none}
+.carrier.UPS{background:#5b3a1f;color:#ffd38a}
+.carrier.FedEx{background:#4d148c;color:#fff}
+.carrier.USPS{background:#1c3f94;color:#fff}
+.carrier.Amazon{background:#232f3e;color:#ff9900}
+.num{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.num:hover{color:var(--accent)}
+.acts{display:flex;gap:0;opacity:0;transition:opacity .12s;flex:none}
+.card:hover .acts,.acts.busy{opacity:1}
+.acts .icon{width:20px;height:20px;font-size:11.5px}
+.confirm{border:0;background:var(--green-line);color:#fff;border-radius:6px;padding:2px 7px;cursor:pointer;font-size:11px;white-space:nowrap;flex:none}
+.st{margin-top:3px;font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.delivered .st{color:var(--green-text)}
+.meta{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.err{color:var(--err);font-size:11px;margin-top:2px}
+.expand{width:100%;border:0;background:transparent;color:var(--muted);border-radius:7px;
+  padding:3px 0 5px;cursor:pointer;font-size:11.5px}
+.expand:hover{color:var(--text)}
+.empty{color:var(--muted);text-align:center;padding:16px 8px}
+
+.panel{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column}
+.panel.show{display:flex}
+.panel .content{padding:0 12px 12px;overflow-y:auto;flex:1}
+.section{margin:12px 0 6px;font-size:12px;font-weight:600}
+.panel label{display:block;margin:8px 0 3px;color:var(--muted);font-size:11.5px}
+.panel input[type=text],.panel input[type=password],.panel input[type=number],.panel select{width:100%;border:1px solid var(--line);
+  background:var(--card);color:var(--text);border-radius:7px;padding:6px 7px;font-size:12.5px;-webkit-user-select:text;user-select:text}
+.chk{display:flex;align-items:center;gap:7px;margin-top:10px;font-size:12px}
+.hint{color:var(--muted);font-size:11px;margin-top:3px}
+.seg{display:flex;background:var(--chip);border-radius:7px;padding:2px;gap:2px}
+.seg button{flex:1;border:0;background:transparent;color:var(--muted);border-radius:5px;padding:5px 0;font-size:11.5px;cursor:pointer;white-space:nowrap}
+.seg button.on{background:var(--card);color:var(--text);font-weight:600;box-shadow:0 1px 2px #0003}
+.linkrow{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:8px 10px;border-radius:8px;
+  background:var(--card);border:1px solid var(--line);cursor:pointer;font-size:12.5px}
+.linkrow:hover{border-color:var(--accent)}
+.toast{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);background:#000c;color:#fff;white-space:nowrap;
+  padding:4px 9px;border-radius:6px;font-size:11.5px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="root">
+<div class="app" id="main">
+  <header id="mainHeader">
+    <h1 id="title"></h1>
+    <button class="icon pin" id="pinBtn" onclick="togglePin()">📌</button>
+    <button class="icon" id="refreshBtn" onclick="refreshAll()"><span class="ico">⟳</span></button>
+    <button class="icon" id="addToggle" onclick="toggleAdd()">＋</button>
+    <button class="icon" id="setBtn" onclick="openPanel('settings')">⚙</button>
+    <button class="icon" id="minBtn" onclick="api().minimize()">–</button>
+    <button class="icon" id="quitBtn" onclick="api().quit()">✕</button>
+  </header>
+  <div class="status-line" id="statusLine"></div>
+  <div class="add" id="addRow">
+    <input id="addInput" onkeydown="if(event.key==='Enter')addManual(); if(event.key==='Escape')toggleAdd(false)">
+    <button class="btn" id="addBtn" onclick="addManual()"></button>
+  </div>
+  <div class="list" id="list"></div>
+</div>
+
+<!-- Settings -->
+<div class="panel" id="settings">
+  <header><h1 data-t="settings"></h1><button class="icon" onclick="closePanel()">✕</button></header>
+  <div class="content">
+    <div class="section" data-t="language"></div>
+    <div class="seg" id="langSeg"></div>
+
+    <div class="section" data-t="screenSize"></div>
+    <div class="seg" id="sizeSeg"></div>
+    <div class="hint" data-t="screenSizeHint"></div>
+
+    <div class="linkrow" onclick="openPanel('archive')"><span data-t="archived"></span><span id="archCount" class="meta">›</span></div>
+
+    <div class="section" data-t="tracking"></div>
+    <label data-t="browser"></label>
+    <select id="s_browser"></select>
+    <div class="hint" data-t="browserHint"></div>
+    <div class="chk"><input type="checkbox" id="s_headless"><span data-t="headless"></span></div>
+    <label data-t="interval"></label>
+    <input type="number" id="s_int" min="10">
+
+    <div class="section" data-t="gmail"></div>
+    <label data-t="gmailAddr"></label>
+    <input type="text" id="s_addr" placeholder="you@gmail.com">
+    <label data-t="appPw"></label>
+    <input type="password" id="s_pw">
+    <div class="hint" id="pwHint"></div>
+    <label data-t="scanDays"></label>
+    <input type="number" id="s_days" min="1">
+
+    <div style="margin-top:14px;display:flex;gap:6px">
+      <button class="btn" onclick="saveSettings()" data-t="save"></button>
+      <button class="btn ghost" onclick="closePanel()" data-t="cancel"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Archive -->
+<div class="panel" id="archive">
+  <header><h1 data-t="archived"></h1><button class="icon" onclick="openPanel('settings')">‹</button><button class="icon" onclick="closePanel()">✕</button></header>
+  <div class="content" id="archiveList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ---------------- i18n ---------------- */
+const I18N = {
+  en: {
+    appName:'Parcels', noPackages:'No packages', delivered:'delivered',
+    pin:'Keep on top', unpin:'On top (click to turn off)', refreshAll:'Refresh all (scan Gmail + check all)',
+    refreshing:'Refreshing…', add:'Add tracking number', addBtn:'Add', addPh:'Tracking number, Enter to add',
+    settings:'Settings', minimize:'Minimize', quit:'Quit',
+    refreshOne:'Refresh this one', open:'Open on parcelsapp', archiveNow:'Archive (stop tracking)',
+    confirm:'✓ Got it', confirmTip:'Confirm received and archive', copy:'Click to copy', copied:'Copied',
+    archivedToast:'Archived', addedToast:'Added, checking…', tooShort:'Number too short',
+    waiting:'Waiting for first check…', updating:'Updating…',
+    showAll:n=>`Show all ${n} ▾`, showLess:'Show less ▴', updated:a=>`Updated ${a}`,
+    justNow:'just now', minAgo:m=>`${m} min ago`, hrAgo:h=>`${h} h ago`, dayAgo:d=>`${d} d ago`,
+    language:'Language', screenSize:'Screen size', screenSizeHint:'Window and text scale together. Applies instantly.',
+    archived:'Archived', restore:'Restore', noArchived:'Nothing archived yet',
+    tracking:'Tracking', browser:'Browser used to read parcelsapp',
+    browserHint:'If lookups get blocked or return no data, switch to another browser. Firefox / WebKit / Chromium download automatically the first time.',
+    headless:'Run the browser in the background (invisible)', interval:'Refresh every (minutes)',
+    gmail:'Gmail', gmailAddr:'Gmail address', appPw:'App password',
+    pwHint:'Google Account → Security → 2-Step Verification → App passwords. Stored in the macOS Keychain.',
+    pwSaved:'✓ Password saved. ', pwKeep:'leave empty to keep', scanDays:'Scan emails from the last N days',
+    save:'Save', cancel:'Cancel', saved:'Saved',
+    on:'On top', off:'Not on top',
+    browsers:{chrome:'Google Chrome', msedge:'Microsoft Edge', brave:'Brave', chromium:'Chromium (bundled)', firefox:'Firefox', webkit:'WebKit (Safari engine)'},
+    msg:{
+      no_gmail:'Gmail not set up — open ⚙ (or add numbers with ＋)',
+      reading_gmail:'Reading Gmail…', gmail_error:a=>`Gmail error: ${a}`,
+      checking:n=>`Checking ${n} package${n>1?'s':''}…`, error:a=>`Error: ${a}`,
+      installing:b=>`Downloading ${b}… (first time only)`, installed:b=>`${b} ready`, install_failed:b=>`Could not download ${b}`,
+    },
+    err:{
+      blocked:'Blocked by parcelsapp. Try another browser in ⚙.',
+      no_data:'No data from parcelsapp (too new, or blocked). Try another browser in ⚙.',
+      browser_missing:b=>`${b} not found. Install it, or pick another browser in ⚙.`,
+      failed:a=>`Lookup failed: ${a}`,
+    },
+    manual:'Added manually',
+  },
+  zh: {
+    appName:'快递', noPackages:'暂无快递', delivered:'已送达',
+    pin:'窗口置顶', unpin:'已置顶（点击取消）', refreshAll:'全部刷新（扫描 Gmail + 查询全部）',
+    refreshing:'刷新中…', add:'手动添加单号', addBtn:'添加', addPh:'输入单号，回车添加',
+    settings:'设置', minimize:'最小化', quit:'退出',
+    refreshOne:'刷新这一条', open:'在 parcelsapp 打开', archiveNow:'归档（不再追踪）',
+    confirm:'✓ 确认', confirmTip:'确认收到并归档', copy:'点击复制', copied:'已复制',
+    archivedToast:'已归档', addedToast:'已添加，正在查询', tooShort:'单号太短',
+    waiting:'等待首次查询…', updating:'正在刷新…',
+    showAll:n=>`展开全部 ${n} 条 ▾`, showLess:'收起 ▴', updated:a=>`更新于 ${a}`,
+    justNow:'刚刚', minAgo:m=>`${m} 分钟前`, hrAgo:h=>`${h} 小时前`, dayAgo:d=>`${d} 天前`,
+    language:'语言', screenSize:'屏幕尺寸', screenSizeHint:'窗口和字号一起缩放，点了立即生效。',
+    archived:'已归档', restore:'恢复', noArchived:'暂无归档记录',
+    tracking:'查询', browser:'读取 parcelsapp 用的浏览器',
+    browserHint:'如果查询被拦截或拿不到数据，换一个浏览器试试。Firefox / WebKit / Chromium 第一次使用时会自动下载。',
+    headless:'后台运行浏览器（不显示窗口）', interval:'刷新间隔（分钟）',
+    gmail:'Gmail', gmailAddr:'Gmail 地址', appPw:'应用专用密码',
+    pwHint:'Google 账号 → 安全性 → 两步验证 → 应用专用密码。保存在 macOS 钥匙串。',
+    pwSaved:'✓ 已保存密码。', pwKeep:'留空表示不修改', scanDays:'扫描最近多少天的邮件',
+    save:'保存', cancel:'取消', saved:'已保存',
+    on:'已置顶', off:'已取消置顶',
+    browsers:{chrome:'Google Chrome', msedge:'Microsoft Edge', brave:'Brave', chromium:'Chromium（内置）', firefox:'Firefox', webkit:'WebKit（Safari 内核）'},
+    msg:{
+      no_gmail:'未设置 Gmail，点 ⚙ 设置（或点 ＋ 手动添加）',
+      reading_gmail:'正在读取 Gmail…', gmail_error:a=>`Gmail 读取失败：${a}`,
+      checking:n=>`正在查询 ${n} 个单号…`, error:a=>`出错：${a}`,
+      installing:b=>`正在下载 ${b}…（仅第一次）`, installed:b=>`${b} 已就绪`, install_failed:b=>`${b} 下载失败`,
+    },
+    err:{
+      blocked:'被 parcelsapp 拦截，可在 ⚙ 里换一个浏览器',
+      no_data:'parcelsapp 没返回数据（单号太新或被限制），可在 ⚙ 里换一个浏览器',
+      browser_missing:b=>`没有找到 ${b}，请安装或在 ⚙ 里换一个浏览器`,
+      failed:a=>`查询失败：${a}`,
+    },
+    manual:'手动添加',
+  },
+};
+let lang = 'en';
+const T = () => I18N[lang] || I18N.en;
+const browserName = k => T().browsers[k] || k;
+
+function errText(code){
+  if(!code) return '';
+  const E = T().err, [k, ...rest] = String(code).split(':'), arg = rest.join(':');
+  if(k === 'blocked' || k === 'no_data') return E[k];
+  if(k === 'browser_missing') return E.browser_missing(browserName(arg));
+  if(k === 'failed') return E.failed(arg);
+  return code; // older entries stored as plain text
+}
+function msgText(m){
+  if(!m) return '';
+  const f = T().msg[m.code];
+  if(!f) return '';
+  const arg = (m.code==='installing'||m.code==='installed'||m.code==='install_failed') ? browserName(m.arg) : m.arg;
+  return typeof f === 'function' ? f(arg) : f;
+}
+function applyStaticText(){
+  document.documentElement.lang = lang === 'zh' ? 'zh' : 'en';
+  document.querySelectorAll('[data-t]').forEach(el => el.textContent = T()[el.dataset.t]);
+  $('addToggle').title = T().add; $('setBtn').title = T().settings;
+  $('minBtn').title = T().minimize; $('quitBtn').title = T().quit;
+  $('addInput').placeholder = T().addPh; $('addBtn').textContent = T().addBtn;
+}
+
+/* ---------------- state & rendering ---------------- */
+const PREVIEW = 3;
+let expanded = false, state = {items: []}, openPanelId = null;
+const api = () => window.pywebview.api;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const trackUrl = n => 'https://parcelsapp.com/en/tracking/' + encodeURIComponent(n);
+
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1400); }
+function ago(ts){
+  const m = Math.round((Date.now()/1000 - ts)/60), L = T();
+  if(m < 1) return L.justNow; if(m < 60) return L.minAgo(m);
+  const h = Math.round(m/60); return h < 24 ? L.hrAgo(h) : L.dayAgo(Math.round(h/24));
+}
+
+function card(it){
+  const L = T(), d = !!it.delivered, n = esc(it.number);
+  const busyOne = (state.refreshing || []).includes(it.number);
+  const status = busyOne ? `<span class="meta">${L.updating}</span>`
+    : it.status ? (d?'✓ ':'') + esc(it.status) : `<span class="meta">${L.waiting}</span>`;
+  const meta = [it.location, it.event_time].filter(Boolean).map(esc).join(' · ');
+  const tip = esc(it.title || (it.source==='manual' ? L.manual : ''));
+  return `<div class="card ${d?'delivered':''}" title="${tip}">
+    <div class="row">
+      <span class="carrier ${esc(it.carrier)}">${esc(it.carrier||'?')}</span>
+      <span class="num" title="${L.copy}" onclick="copyNum('${n}')">${n}</span>
+      <span class="acts ${busyOne?'busy':''}">
+        <button class="icon" title="${L.refreshOne}" ${busyOne?'disabled':''} onclick="refreshOne('${n}')"><span class="${busyOne?'spin':''}">⟳</span></button>
+        <button class="icon" title="${L.open}" onclick="api().open_url('${trackUrl(it.number)}')">↗</button>
+        ${d?'':`<button class="icon" title="${L.archiveNow}" onclick="confirmItem('${n}')">🗄</button>`}
+      </span>
+      ${d?`<button class="confirm" title="${L.confirmTip}" onclick="confirmItem('${n}')">${L.confirm}</button>`:''}
+    </div>
+    <div class="st">${status}</div>
+    ${meta?`<div class="meta">${meta}</div>`:''}
+    ${it.error?`<div class="err">${esc(errText(it.error))}</div>`:''}
+  </div>`;
+}
+
+function render(){
+  const L = T(), items = state.items || [];
+  const nDelivered = items.filter(i => i.delivered).length;
+  // empty -> the whole widget is a single line
+  $('title').innerHTML = items.length
+    ? `📦 ${L.appName}<span class="badge">${items.length}</span>${nDelivered?`<span class="badge green" title="${L.delivered}">✓${nDelivered}</span>`:''}`
+    : `📦 <span class="sub">${L.noPackages}</span>`;
+
+  const shown = expanded ? items : items.slice(0, PREVIEW);
+  let html = shown.map(card).join('');
+  if(items.length > PREVIEW)
+    html += `<button class="expand" onclick="toggleExpand()">${expanded ? L.showLess : L.showAll(items.length)}</button>`;
+  $('list').innerHTML = html;
+
+  $('statusLine').textContent = msgText(state.message) || (state.busy ? L.refreshing : '');
+  const rb = $('refreshBtn');
+  rb.querySelector('.ico').classList.toggle('spin', !!state.busy);
+  rb.disabled = !!state.busy;
+  rb.title = state.busy ? L.refreshing : L.refreshAll + (state.last_run ? ' — ' + L.updated(ago(state.last_run)) : '');
+  $('pinBtn').classList.toggle('on', !!state.on_top);
+  $('pinBtn').title = state.on_top ? L.unpin : L.pin;
+  fitSoon();
+}
+
+/* window height follows content: one line when empty, capped by the screen-size preset */
+let fitTimer = null, lastFit = 0;
+function fitSoon(){ clearTimeout(fitTimer); fitTimer = setTimeout(fit, 30); }
+function fit(){
+  if(!window.pywebview) return;
+  let h;
+  if(openPanelId){ h = 10000; }                  // panels use the full preset height
+  else {
+    const m = $('main');
+    h = 0; for(const el of m.children){ if(el.offsetParent !== null || el === m.firstElementChild) h += el.offsetHeight; }
+    const list = $('list');
+    h += Math.max(0, list.scrollHeight - list.offsetHeight) + 2;  // full content, not the clipped box
+  }
+  if(Math.abs(h - lastFit) < 1) return;
+  lastFit = h; api().fit(h);
+}
+
+async function load(){
+  state = await api().get_state();
+  if(state.lang && state.lang !== lang){ lang = state.lang; applyStaticText(); }
+  setZoom(state.zoom);
+  render();
+}
+window.onBackendUpdate = () => load();
+function setZoom(z){ if(z) $('root').style.setProperty('--z', z); }
+
+/* ---------------- actions ---------------- */
+function toggleExpand(){ expanded = !expanded; render(); }
+function copyNum(n){ navigator.clipboard?.writeText(n).then(()=>toast(T().copied), ()=>{}); }
+async function confirmItem(n){ await api().confirm(n); toast(T().archivedToast); load(); }
+async function refreshAll(){ await api().refresh_now(); state.busy = true; render(); }
+async function refreshOne(n){ await api().refresh_one(n); state.refreshing = [...(state.refreshing||[]), n]; render(); }
+async function togglePin(){
+  state.on_top = await api().set_on_top(!state.on_top);
+  render(); toast(state.on_top ? T().on : T().off);
+}
+function toggleAdd(force){
+  const show = force ?? !$('addRow').classList.contains('show');
+  $('addRow').classList.toggle('show', show); $('addToggle').classList.toggle('on', show);
+  if(show) $('addInput').focus();
+  fitSoon();
+}
+async function addManual(){
+  const v = $('addInput').value.trim(); if(!v) return;
+  const r = await api().add_manual(v, '');
+  if(r.ok){ $('addInput').value=''; toggleAdd(false); toast(T().addedToast); load(); }
+  else toast(T().tooShort);
+}
+
+/* ---------------- panels ---------------- */
+async function openPanel(id){
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('show', p.id === id));
+  openPanelId = id; lastFit = 0; fit();
+  if(id === 'settings') await fillSettings();
+  if(id === 'archive') await fillArchive();
+}
+function closePanel(){
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('show'));
+  openPanelId = null; lastFit = 0; fitSoon();
+}
+function seg(el, opts, cur, fn){
+  $(el).innerHTML = opts.map(o => `<button class="${o.key===cur?'on':''}" onclick="${fn}('${o.key}')">${esc(o.label)}</button>`).join('');
+}
+async function fillSettings(){
+  const s = await api().get_settings(), L = T();
+  seg('langSeg', [{key:'en',label:'English'},{key:'zh',label:'中文'}], lang, 'pickLang');
+  seg('sizeSeg', (state.presets||[]).map(p => ({key:p.key, label: p.key==='ext' ? (lang==='zh'?'外接屏':'External') : p.label})), state.size_preset, 'pickSize');
+  $('s_browser').innerHTML = s.browsers.map(b => `<option value="${b}" ${b===s.browser?'selected':''}>${esc(browserName(b))}</option>`).join('');
+  $('s_headless').checked = !!s.headless;
+  $('s_int').value = s.interval_minutes; $('s_days').value = s.scan_days;
+  $('s_addr').value = s.gmail_address || ''; $('s_pw').value = '';
+  $('s_pw').placeholder = s.has_password ? L.pwKeep : '';
+  $('pwHint').textContent = (s.has_password ? L.pwSaved : '') + L.pwHint;
+  const arch = await api().get_archived();
+  $('archCount').textContent = (arch.length ? arch.length + ' ' : '') + '›';
+}
+async function pickLang(k){ lang = await api().set_lang(k); applyStaticText(); fillSettings(); render(); }
+async function pickSize(k){
+  const r = await api().set_size(k);
+  if(r){ state.size_preset = k; state.zoom = r.zoom; setZoom(r.zoom); lastFit = 0; fit(); fillSettings(); }
+}
+async function saveSettings(){
+  await api().save_settings({
+    gmail_address: $('s_addr').value, app_password: $('s_pw').value,
+    interval_minutes: $('s_int').value, scan_days: $('s_days').value,
+    headless: $('s_headless').checked, browser: $('s_browser').value,
+  });
+  closePanel(); toast(T().saved); load();
+}
+async function fillArchive(){
+  const rows = await api().get_archived(), L = T();
+  $('archiveList').innerHTML = rows.length ? rows.map(it => `<div class="card">
+      <div class="row"><span class="carrier ${esc(it.carrier)}">${esc(it.carrier)}</span>
+      <span class="num" onclick="copyNum('${esc(it.number)}')">${esc(it.number)}</span>
+      <button class="icon" title="${L.restore}" onclick="restore('${esc(it.number)}')">↩</button></div>
+      <div class="meta">${esc(it.status||'')}</div></div>`).join('')
+    : `<div class="empty">${L.noArchived}</div>`;
+}
+async function restore(n){ await api().unarchive(n); fillArchive(); load(); }
+
+/* ---------------- dragging ----------------
+   Move by the mouse delta from where the drag started, instead of absolute
+   coordinates (which jump on multi-display / scaled setups). */
+let drag = null;
+document.addEventListener('mousedown', async e => {
+  const h = e.target.closest('header');
+  if(!h || e.button !== 0 || e.target.closest('button,input,select')) return;
+  e.preventDefault();
+  const d = drag = {sx:e.screenX, sy:e.screenY, pos:null, target:null, busy:false, header:h};
+  h.classList.add('dragging');
+  d.pos = await api().get_pos();
+  pump(d);
+});
+document.addEventListener('mousemove', e => {
+  if(!drag) return;
+  drag.target = [e.screenX - drag.sx, e.screenY - drag.sy];
+  pump(drag);
+});
+document.addEventListener('mouseup', () => { if(drag){ drag.header.classList.remove('dragging'); pump(drag); drag = null; } });
+async function pump(d = drag){
+  if(!d || !d.pos || !d.target || d.busy) return;
+  const [dx, dy] = d.target; d.target = null; d.busy = true;
+  try{ await api().move(d.pos[0] + dx, d.pos[1] + dy); } finally { d.busy = false; }
+  if(d.target) pump(d);   // only the latest position is sent: no backlog, no lag
+}
+
+window.addEventListener('pywebviewready', () => { applyStaticText(); load(); setInterval(load, 60000); });
+applyStaticText();
+</script>
+</body>
+</html>
