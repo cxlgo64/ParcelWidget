@@ -4,570 +4,509 @@
 <meta charset="utf-8">
 <title>Parcel Widget</title>
 <style>
-:root{
-  --bg:#f5f5f7; --card:#ffffff; --text:#1d1d1f; --muted:#6e6e73; --line:#e3e3e8;
-  --accent:#0a84ff; --green:#e6f6ea; --green-line:#34c759; --green-text:#1b7f3b;
-  --err:#c4372c; --chip:#ececf1;
-}
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#1c1c1e; --card:#2c2c2e; --text:#f2f2f7; --muted:#9a9aa0; --line:#3a3a3c;
-    --green:#183a24; --green-line:#30d158; --green-text:#7ee29a; --err:#ff6b5e; --chip:#3a3a3c;
-  }
-}
+:root{--ink:#1f1f24;--frame:#2f80ed;--paper:#ffffff;--muted:#77777f;--line:#e4e2dc;--accent:#0a84ff;--green:#2f9e5b;--greenbg:#e8f6ec;--err:#c4372c;--chip:#f1efe9}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(--text);
-  font:13px/1.35 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(--ink);
+  font:13px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Segoe UI","Microsoft YaHei",sans-serif;
   -webkit-user-select:none;user-select:none}
-/* whole UI scales with the screen-size preset (--z) */
-#root{--z:.78;position:relative;transform-origin:0 0;transform:scale(var(--z));
-  width:calc(100% / var(--z));height:calc(100% / var(--z))}
-#stage{position:relative;width:100%;height:100%}
-/* the panel: fills the window without a skin; with a skin it sits at the character's hand height */
-.app{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);
-  border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.skinned .app{inset:auto;top:auto}
-.skinned.side-right .app{left:0}
-.skinned.side-left .app{right:0}
+/* everything scales with the screen-size preset (--z); anchored bottom-left of the window */
+#root{--z:.78;position:absolute;left:0;bottom:0;transform-origin:0 100%;transform:scale(var(--z))}
+#stage{position:relative}
 
-/* ---- skin character ---- */
-/* she stands just behind the panel's corner, so the panel looks held in her hands and no UI is covered */
-#pet{position:absolute;bottom:0;display:none;pointer-events:none;z-index:1}
-.app{z-index:2}
-.skinned #pet{display:block}
+/* ---- the character ---- */
+#pet{position:absolute;bottom:0;z-index:2}
 .side-right #pet{right:0}
 .side-left #pet{left:0}
-#sprite{position:absolute;inset:0;background-repeat:no-repeat;image-rendering:auto;
-  filter:drop-shadow(0 2px 3px #0005)}
-#hit{position:absolute;left:22%;right:22%;top:4%;bottom:2%;pointer-events:auto;cursor:pointer}
-#bubble{position:absolute;max-width:190px;padding:6px 9px;border-radius:12px;background:var(--card);color:var(--text);
-  border:1px solid var(--line);box-shadow:0 2px 8px #0004;font-size:12px;line-height:1.3;pointer-events:none;z-index:6;
-  opacity:0;transform:translateY(4px) scale(.96);transition:opacity .18s,transform .18s;white-space:normal}
-#bubble.show{opacity:1;transform:none}
-#bubble::after{content:"";position:absolute;bottom:8px;width:10px;height:10px;background:var(--card);
-  border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
-.side-right #bubble::after{right:-6px;transform:rotate(-45deg)}
-.side-left #bubble::after{left:-6px;transform:rotate(135deg)}
-.skinrow{display:flex;gap:6px;margin-top:2px}
-.skinopt{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:8px;
-  border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:11px;color:var(--muted)}
-.skinopt.on{border-color:var(--accent);color:var(--text);font-weight:600}
-.skinopt .th{width:30px;height:32px;background:center/contain no-repeat;display:grid;place-items:center;font-size:16px}
+#sprite{position:absolute;inset:0;background-repeat:no-repeat;filter:drop-shadow(0 2px 3px #0005);pointer-events:none}
+#hit{position:absolute;left:24%;right:24%;top:3%;bottom:2%;cursor:pointer}
+#hit.dragging{cursor:grabbing}
 
-header{display:flex;align-items:center;gap:1px;padding:6px 6px 6px 10px;cursor:grab;flex:none}
-header.dragging{cursor:grabbing}
-header h1{font-size:13px;font-weight:600;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-header .sub{color:var(--muted);font-weight:400}
-.badge{display:inline-block;min-width:16px;padding:0 5px;margin-left:4px;border-radius:8px;background:var(--chip);
-  color:var(--text);font-size:11px;font-weight:600;text-align:center;line-height:16px}
-.badge.green{background:var(--green-line);color:#fff}
-.icon{border:0;background:transparent;color:var(--muted);width:22px;height:22px;border-radius:6px;padding:0;
-  cursor:pointer;font-size:13px;display:grid;place-items:center;flex:none}
-.icon:hover{background:var(--chip);color:var(--text)}
-.icon:disabled{cursor:default;opacity:.7}
-.icon.on{background:var(--chip);color:var(--accent)}
-.pin{font-size:11px;filter:grayscale(1);opacity:.45}
-.pin.on{filter:none;opacity:1}
+/* ---- hover buttons around her head (idle mode) ---- */
+#hover{position:absolute;inset:0;pointer-events:none;z-index:3}
+.fbtn{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:2.5px solid var(--frame);
+  background:var(--paper);font-size:16px;display:grid;place-items:center;cursor:pointer;pointer-events:auto;
+  box-shadow:2px 2px 0 #0003;opacity:0;transform:scale(.4);transition:opacity .16s,transform .16s;padding:0}
+.fbtn:hover{background:#e8f1fe;transform:scale(1.12)!important}
+#hover.show .fbtn{opacity:1;transform:scale(1)}
+#hover:not(.show) .fbtn{pointer-events:none}
+.fbtn .tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);white-space:nowrap;
+  background:var(--frame);color:#fff;font-size:11px;padding:2px 7px;border-radius:9px;opacity:0;transition:opacity .12s;pointer-events:none}
+.fbtn:hover .tip{opacity:1}
+
+/* ---- comic speech balloon ---- */
+#balloon{position:absolute;z-index:4;background:var(--paper);border:2.5px solid var(--frame);border-radius:20px;
+  box-shadow:3px 4px 0 #2f80ed2e;padding:9px 12px 10px;display:none;flex-direction:column;
+  transform-origin:100% 100%;animation:pop .18s ease-out}
+.side-left #balloon{transform-origin:0 100%}
+#balloon.show{display:flex}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+#tail{position:absolute;bottom:-25px;width:44px;height:28px;overflow:visible;pointer-events:none}
+.side-right #tail{right:14px}
+.side-left #tail{left:14px;transform:scaleX(-1)}
+#tail .fill{fill:var(--paper)}
+#tail .edge{fill:none;stroke:var(--frame);stroke-width:2.5;stroke-linejoin:round}
+.bhead{display:flex;align-items:center;gap:6px;margin-bottom:4px;cursor:grab}
+.bhead .t{flex:1;font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bhead .pg{color:var(--muted);font-size:11px}
+.bx{border:0;background:none;color:var(--muted);font-size:13px;cursor:pointer;padding:0 2px;border-radius:5px}
+.bx:hover{color:var(--ink);background:var(--chip)}
+.bbody{overflow-y:auto;min-height:0;flex:0 1 auto;-webkit-user-select:text;user-select:text}
+.bbody .ln{margin:2px 0;font-size:12.5px}
+.bbody .dim{color:var(--muted);font-size:11.5px}
+.bbody .warn{color:var(--err)}
+.bbody code{font:11px ui-monospace,Menlo,Consolas,monospace}
+.bbody.quip{font-size:13px;font-weight:500;padding:1px 0}
+.bfoot{display:flex;align-items:center;gap:6px;margin-top:8px}
+.bfoot:empty{display:none}
+.bfoot .sp{flex:1;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.okbtn{border:2px solid var(--frame);background:var(--frame);color:#fff;font-weight:700;border-radius:14px;padding:3px 14px;
+  font-size:12.5px;cursor:pointer;box-shadow:2px 2px 0 #2f80ed33}
+.okbtn:hover{background:#1f6fdc}
+.okbtn:disabled{background:var(--chip);color:var(--muted);border-color:#bbb;box-shadow:none;cursor:default}
+.lnk{border:0;background:none;color:var(--accent);font-size:11.5px;cursor:pointer;padding:0}
+.lnk:disabled{color:var(--muted);cursor:default}
+.binput{display:none;gap:5px;margin-top:7px}
+.binput.show{display:flex}
+.binput input{flex:1;min-width:0;border:1.5px solid #cfe0f8;border-radius:12px;padding:4px 9px;font-size:12px;outline:none;
+  -webkit-user-select:text;user-select:text;background:#fff;color:var(--ink)}
+.binput input:focus{border-color:var(--frame)}
+.binput button{border:0;background:var(--frame);color:#fff;border-radius:12px;padding:0 10px;font-size:12px;font-weight:600;cursor:pointer}
+.bmsg{font-size:11px;color:var(--muted);margin-top:3px;min-height:0}
+.bmsg:empty{display:none}
+.bmsg.err{color:var(--err)}
+.dots::after{content:'';display:inline-block;width:1.2em;text-align:left;animation:dots 1.2s steps(4) infinite}
+@keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+
+/* package rows */
+.pk{display:flex;gap:6px;align-items:flex-start;padding:5px 0;border-top:1px dashed #d6e4f7}
+.pk:first-child{border-top:0}
+.pk .tag{font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:4px;background:var(--chip);flex:none;margin-top:2px}
+.tag.UPS{background:#5b3a1f;color:#ffd38a}.tag.FedEx{background:#4d148c;color:#fff}
+.tag.USPS{background:#1c3f94;color:#fff}.tag.Amazon{background:#232f3e;color:#ff9900}
+.pk .mid{flex:1;min-width:0}
+.pk .st{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk.done .st{color:var(--green)}
+.pk .meta{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk .num{font:10.5px ui-monospace,Menlo,Consolas,monospace;color:var(--muted);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk .num:hover{color:var(--accent)}
+.pk .e{color:var(--err);font-size:11px}
+.pk .acts{display:flex;gap:2px;flex:none;opacity:0;transition:opacity .1s}
+.pk:hover .acts{opacity:1}
+.pk .acts button{border:0;background:none;cursor:pointer;color:var(--muted);font-size:12px;padding:1px 3px;border-radius:5px}
+.pk .acts button:hover{background:var(--chip);color:var(--ink)}
+.gotbtn{border:1.5px solid var(--green);background:var(--greenbg);color:var(--green);font-weight:700;border-radius:10px;
+  padding:1px 8px;font-size:11px;cursor:pointer;flex:none;margin-top:1px}
 .spin{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-.status-line{padding:0 10px 5px;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}
-.status-line:empty{display:none}
-.add{display:none;gap:5px;padding:0 8px 6px;flex:none}
-.add.show{display:flex}
-.add input{flex:1;min-width:0;border:1px solid var(--line);background:var(--card);color:var(--text);
-  border-radius:7px;padding:5px 7px;font-size:12px;-webkit-user-select:text;user-select:text}
-.btn{border:0;background:var(--accent);color:#fff;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer}
-.btn.ghost{background:var(--chip);color:var(--text)}
-
-/* list sizes to its content so the window can shrink to fit */
-.list{flex:0 1 auto;min-height:0;overflow-y:auto;padding:0 8px 2px}
-.list:empty{display:none}
-.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:6px 8px;margin-bottom:5px}
-.card.delivered{background:var(--green);border-color:var(--green-line)}
-.row{display:flex;align-items:center;gap:5px;min-width:0}
-.carrier{font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:4px;background:var(--chip);color:var(--text);flex:none}
-.carrier.UPS{background:#5b3a1f;color:#ffd38a}
-.carrier.FedEx{background:#4d148c;color:#fff}
-.carrier.USPS{background:#1c3f94;color:#fff}
-.carrier.Amazon{background:#232f3e;color:#ff9900}
-.num{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
-.num:hover{color:var(--accent)}
-.acts{display:flex;gap:0;opacity:0;transition:opacity .12s;flex:none}
-.card:hover .acts,.acts.busy{opacity:1}
-.acts .icon{width:20px;height:20px;font-size:11.5px}
-.confirm{border:0;background:var(--green-line);color:#fff;border-radius:6px;padding:2px 7px;cursor:pointer;font-size:11px;white-space:nowrap;flex:none}
-.st{margin-top:3px;font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.delivered .st{color:var(--green-text)}
-.meta{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.err{color:var(--err);font-size:11px;margin-top:2px}
-.expand{width:100%;border:0;background:transparent;color:var(--muted);border-radius:7px;
-  padding:3px 0 5px;cursor:pointer;font-size:11.5px}
-.expand:hover{color:var(--text)}
-.empty{color:var(--muted);text-align:center;padding:16px 8px}
-
-.panel{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column}
-.panel.show{display:flex}
-.panel .content{padding:0 12px 12px;overflow-y:auto;flex:1}
-.section{margin:12px 0 6px;font-size:12px;font-weight:600}
-.panel label{display:block;margin:8px 0 3px;color:var(--muted);font-size:11.5px}
-.panel input[type=text],.panel input[type=password],.panel input[type=number],.panel select{width:100%;border:1px solid var(--line);
-  background:var(--card);color:var(--text);border-radius:7px;padding:6px 7px;font-size:12.5px;-webkit-user-select:text;user-select:text}
-.chk{display:flex;align-items:center;gap:7px;margin-top:10px;font-size:12px}
-.hint{color:var(--muted);font-size:11px;margin-top:3px}
-.seg{display:flex;background:var(--chip);border-radius:7px;padding:2px;gap:2px}
-.seg button{flex:1;border:0;background:transparent;color:var(--muted);border-radius:5px;padding:5px 0;font-size:11.5px;cursor:pointer;white-space:nowrap}
-.seg button.on{background:var(--card);color:var(--text);font-weight:600;box-shadow:0 1px 2px #0003}
-.linkrow{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:8px 10px;border-radius:8px;
-  background:var(--card);border:1px solid var(--line);cursor:pointer;font-size:12.5px}
-.linkrow:hover{border-color:var(--accent)}
-.toast{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);background:#000c;color:#fff;white-space:nowrap;
-  padding:4px 9px;border-radius:6px;font-size:11.5px;opacity:0;transition:opacity .2s;pointer-events:none}
-.toast.show{opacity:1}
+/* system monitor */
+.chart{margin:3px 0 7px}
+.chart .hd{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:2px}
+.chart .hd b{font-weight:700}
+.chart .hd .v{font-variant-numeric:tabular-nums;color:var(--muted)}
+.chart canvas{display:block;width:100%;height:46px;border-radius:6px;background:#f6f5f1}
 </style>
 </head>
 <body>
 <div id="root">
-<div id="stage">
-<div class="app" id="main">
-  <header id="mainHeader">
-    <h1 id="title"></h1>
-    <button class="icon pin" id="pinBtn" onclick="togglePin()">📌</button>
-    <button class="icon" id="refreshBtn" onclick="refreshAll()"><span class="ico">⟳</span></button>
-    <button class="icon" id="addToggle" onclick="toggleAdd()">＋</button>
-    <button class="icon" id="setBtn" onclick="openPanel('settings')">⚙</button>
-    <button class="icon" id="minBtn" onclick="api().minimize()">–</button>
-    <button class="icon" id="quitBtn" onclick="api().quit()">✕</button>
-  </header>
-  <div class="status-line" id="statusLine"></div>
-  <div class="add" id="addRow">
-    <input id="addInput" onkeydown="if(event.key==='Enter')addManual(); if(event.key==='Escape')toggleAdd(false)">
-    <button class="btn" id="addBtn" onclick="addManual()"></button>
+<div id="stage" class="side-right">
+  <div id="balloon">
+    <div class="bhead" id="bhead"><span class="t" id="btitle"></span><span class="pg" id="bpage"></span>
+      <button class="bx" id="bclose" onclick="closeView()">✕</button></div>
+    <div class="bbody" id="bbody"></div>
+    <!-- kept outside the body so typing isn't lost when the body re-renders -->
+    <div class="binput" id="binput"><input id="binText" autocomplete="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter' && !event.isComposing)submitInput(); if(event.key==='Escape')closeView()">
+      <button id="binBtn" onclick="submitInput()"></button></div>
+    <div class="bmsg" id="bmsg"></div>
+    <div class="bfoot" id="bfoot"></div>
+    <svg id="tail" viewBox="0 0 44 28"><path class="fill" d="M2,-4 L40,26 L24,-4 Z"/><path class="edge" d="M4,0 L40,26 L22,0"/></svg>
   </div>
-  <div class="list" id="list"></div>
-
-<!-- Settings -->
-<!-- (panels live inside the app box so the character stays visible beside them) -->
-<div class="panel" id="settings">
-  <header><h1 data-t="settings"></h1><button class="icon" onclick="closePanel()">✕</button></header>
-  <div class="content">
-    <div class="section" data-t="language"></div>
-    <div class="seg" id="langSeg"></div>
-
-    <div class="section" data-t="screenSize"></div>
-    <div class="seg" id="sizeSeg"></div>
-    <div class="hint" data-t="screenSizeHint"></div>
-
-    <div class="section" data-t="skin"></div>
-    <div class="skinrow" id="skinRow"></div>
-    <div class="seg" id="sideSeg" style="margin-top:6px"></div>
-    <div class="hint" data-t="skinHint"></div>
-
-    <div class="linkrow" onclick="openPanel('archive')"><span data-t="archived"></span><span id="archCount" class="meta">›</span></div>
-
-    <div class="section" data-t="tracking"></div>
-    <label data-t="browser"></label>
-    <select id="s_browser"></select>
-    <div class="hint" data-t="browserHint"></div>
-    <div class="chk"><input type="checkbox" id="s_headless"><span data-t="headless"></span></div>
-    <label data-t="interval"></label>
-    <input type="number" id="s_int" min="10">
-
-    <div class="section" data-t="gmail"></div>
-    <label data-t="gmailAddr"></label>
-    <input type="text" id="s_addr" placeholder="you@gmail.com">
-    <label data-t="appPw"></label>
-    <input type="password" id="s_pw">
-    <div class="hint" id="pwHint"></div>
-    <label data-t="scanDays"></label>
-    <input type="number" id="s_days" min="1">
-
-    <div style="margin-top:14px;display:flex;gap:6px">
-      <button class="btn" onclick="saveSettings()" data-t="save"></button>
-      <button class="btn ghost" onclick="closePanel()" data-t="cancel"></button>
-    </div>
-  </div>
+  <div id="pet"><div id="sprite"></div><div id="hit"></div></div>
+  <div id="hover"></div>
+</div>
 </div>
 
-<!-- Archive -->
-<div class="panel" id="archive">
-  <header><h1 data-t="archived"></h1><button class="icon" onclick="openPanel('settings')">‹</button><button class="icon" onclick="closePanel()">✕</button></header>
-  <div class="content" id="archiveList"></div>
-</div>
-
-<div class="toast" id="toast"></div>
-</div><!-- /.app -->
-
-<div id="pet"><div id="sprite"></div><div id="hit" title=""></div></div>
-<div id="bubble"></div>
-</div><!-- /#stage -->
-</div><!-- /#root -->
-
+<script src="i18n.js"></script>
 <script>
-/* ---------------- i18n ---------------- */
-const I18N = {
-  en: {
-    appName:'Parcels', noPackages:'No packages', delivered:'delivered',
-    pin:'Keep on top', unpin:'On top (click to turn off)', refreshAll:'Refresh all (scan Gmail + check all)',
-    refreshing:'Refreshing…', add:'Add tracking number', addBtn:'Add', addPh:'Tracking number, Enter to add',
-    settings:'Settings', minimize:'Minimize', quit:'Quit',
-    refreshOne:'Refresh this one', open:'Open on parcelsapp', archiveNow:'Archive (stop tracking)',
-    confirm:'✓ Got it', confirmTip:'Confirm received and archive', copy:'Click to copy', copied:'Copied',
-    archivedToast:'Archived', addedToast:'Added, checking…', tooShort:'Number too short',
-    waiting:'Waiting for first check…', updating:'Updating…',
-    showAll:n=>`Show all ${n} ▾`, showLess:'Show less ▴', updated:a=>`Updated ${a}`,
-    justNow:'just now', minAgo:m=>`${m} min ago`, hrAgo:h=>`${h} h ago`, dayAgo:d=>`${d} d ago`,
-    language:'Language', screenSize:'Screen size', screenSizeHint:'Window and text scale together. Applies instantly.',
-    archived:'Archived', restore:'Restore', noArchived:'Nothing archived yet',
-    tracking:'Tracking', browser:'Browser used to read parcelsapp',
-    browserHint:'If lookups get blocked or return no data, switch to another browser. Firefox / WebKit / Chromium download automatically the first time.',
-    headless:'Run the browser in the background (invisible)', interval:'Refresh every (minutes)',
-    gmail:'Gmail', gmailAddr:'Gmail address', appPw:'App password',
-    pwHint:'Google Account → Security → 2-Step Verification → App passwords. Stored in the macOS Keychain.',
-    pwSaved:'✓ Password saved. ', pwKeep:'leave empty to keep', scanDays:'Scan emails from the last N days',
-    save:'Save', cancel:'Cancel', saved:'Saved',
-    on:'On top', off:'Not on top',
-    browsers:{chrome:'Google Chrome', msedge:'Microsoft Edge', brave:'Brave', chromium:'Chromium (bundled)', firefox:'Firefox', webkit:'WebKit (Safari engine)'},
-    msg:{
-      no_gmail:'Gmail not set up — open ⚙ (or add numbers with ＋)',
-      reading_gmail:'Reading Gmail…', gmail_error:a=>`Gmail error: ${a}`,
-      checking:n=>`Checking ${n} package${n>1?'s':''}…`, error:a=>`Error: ${a}`,
-      installing:b=>`Downloading ${b}… (first time only)`, installed:b=>`${b} ready`, install_failed:b=>`Could not download ${b}`,
+/* The character's window: just her and her speech balloon.
+
+   What the balloon shows, most important first:
+   1. reports from her jobs (features), one at a time, each with a ✓ button. A report that's
+      still running shows its progress. Confirm them all and she goes idle.
+   2. a feature's view, opened from her hover buttons or the menu (packages, system monitor)
+   3. short quips (poke, hello) that fade by themselves
+   Idle: hover over her for a button per feature; click her = poke; right-click = the menu.
+
+   Each feature's page side is in FEATURES below (report / view / open). */
+
+let state = {f: {}, reports: []}, prevState = null;
+let view = null;            // feature id whose view is open
+let quip = null, quipTimer = null;
+let reportIdx = 0;
+const PET_SCALE = 1.25;     // she's the main thing now: a bit bigger than when she held a panel
+
+/* ---------------- features: their page side ---------------- */
+const P = () => state.f.parcels || {};
+function pkRow(it, withActs){
+  const L = T(), p = L.p, d = !!it.delivered, n = esc(it.number);
+  const busyOne = (P().refreshing || []).includes(it.number);
+  const st = busyOne ? `<span class="dim">${L.updating}</span>` : it.status ? (d ? '✓ ' : '') + esc(it.status) : `<span class="dim">${L.waiting}</span>`;
+  const meta = [it.location, it.event_time].filter(Boolean).map(esc).join(' · ');
+  return `<div class="pk ${d?'done':''}" title="${esc(it.title || (it.source==='manual' ? L.manual : ''))}">
+    <span class="tag ${esc(it.carrier)}">${esc(it.carrier || '?')}</span>
+    <div class="mid"><div class="st">${st}</div>${meta ? `<div class="meta">${meta}</div>` : ''}
+      <div class="num" title="${n}" onclick="copyNum('${n}')">${n}</div>
+      ${it.error ? `<div class="e">${esc(errText(it.error))}</div>` : ''}</div>
+    ${withActs ? `<div class="acts">
+      <button title="${esc(p.refresh)}" onclick="fcall('parcels','refresh_one','${n}')"><span class="${busyOne?'spin':''}">⟳</span></button>
+      <button title="${esc(p.open)}" onclick="api().open_url('${trackUrl(it.number)}')">↗</button>
+      ${d ? '' : `<button title="${esc(p.archive)}" onclick="fcall('parcels','confirm','${n}')">🗄</button>`}</div>` : ''}
+    ${d && withActs ? `<button class="gotbtn" onclick="gotIt('${n}')">${esc(p.got)}</button>` : ''}
+  </div>`;
+}
+const FEATURES = {
+  parcels: {
+    report(r){
+      const p = T().p, a = r.data || {}, out = [];
+      if(r.kind === 'install'){
+        out.push(r.live ? p.installing(esc(browserName(a.browser))) + '<span class="dots"></span>'
+          : a.ok ? p.installed(esc(browserName(a.browser))) : `<span class="warn">${p.install_failed(esc(browserName(a.browser)))}</span>`);
+        return {html: out.map(l => `<div class="ln">${l}</div>`).join('')};
+      }
+      const m = a.mail;
+      if(a.cached) out.push(`<span class="dim">${p.cached(hhmm(a.cached), P().next_check ? hhmm(P().next_check) : '')}</span>`);
+      if(r.live && !m && !a.track) out.push(p.checking + '<span class="dots"></span>');
+      if(m){
+        if(m.st === 'off') out.push(`<span class="dim">${p.mailOff}</span>`);
+        else if(m.st === 'error') out.push(`<span class="warn">${esc(p.mailErr(m.err || ''))}</span>`);
+        else if(m.st === 'reading'){
+          const k = (m.found || []).length;
+          out.push(p.mailReading(m.n, m.total) + (k ? ' · ' + p.soFar(k) : '') + '<span class="dots"></span>');
+        } else {
+          const f = m.found || [], nw = f.filter(x => x.new);
+          out.push(f.length ? p.mailDone(m.total || f.length, f.length, nw.length) : p.mailNone(m.total));
+        }
+      }
+      const t = a.track;
+      if(t){
+        if(t.st === 'running'){
+          const it = (P().items || []).find(i => i.number === t.cur) || {};
+          out.push(p.trackRun(Math.min(t.n + 1, t.total), t.total, esc(it.carrier || ''), esc(shortNum(t.cur))) + '<span class="dots"></span>');
+        } else out.push(t.total ? p.trackDone(t.n) : p.trackNone);
+      }
+      let cards = '';
+      if(a.sum){
+        // new packages from Gmail are already counted on the mail line
+        const s2 = m && m.st === 'done' ? {...a.sum, new: []} : a.sum;
+        if(s2.delivered.length || s2.moved.length || s2.new.length || !a.sum.new.length) out.push(p.sum(s2));
+        if(a.sum.errors.length) out.push(`<span class="warn">${p.sumErr(a.sum.errors.length)}</span>`);
+        // the packages this report is about
+        const nums = [...a.sum.delivered, ...a.sum.new, ...a.sum.moved, ...a.sum.errors];
+        const by = Object.fromEntries((P().items || []).map(i => [i.number, i]));
+        cards = [...new Set(nums)].filter(n => by[n]).map(n => pkRow(by[n], false)).join('');
+      }
+      if(a.err) out.push(`<span class="warn">${esc(p.runErr(a.err))}</span>`);
+      const link = !r.live && !a.cached && m && (m.st === 'off' || m.st === 'error')
+        ? `<button class="lnk" onclick="api().open_settings('parcels')">${esc(p.setup)} ›</button>` : '';
+      return {html: out.map(l => `<div class="ln">${l}</div>`).join('') + (cards ? `<div style="margin-top:4px">${cards}</div>` : ''), link};
     },
-    err:{
-      blocked:'Blocked by parcelsapp. Try another browser in ⚙.',
-      no_data:'No data from parcelsapp (too new, or blocked). Try another browser in ⚙.',
-      browser_missing:b=>`${b} not found. Install it, or pick another browser in ⚙.`,
-      failed:a=>`Lookup failed: ${a}`,
-    },
-    manual:'Added manually',
-    skin:'Skin', skinHint:'Add your own: drop a folder with skin.json + sheet.png into ui/skins.', noSkin:'None', sideLeft:'Stand on left', sideRight:'Stand on right',
-    pet:{
-      hello:['Hi! I\'ll keep an eye on your packages.','Good to see you!'],
-      summary:(n,d)=> n ? `${n} package${n>1?'s':''} on the way${d?`, ${d} delivered!`:'.'}` : 'No packages right now. Relaxing~',
-      poke:['Hehe, that tickles!','Need something?','I\'m watching them, promise!','♪～'],
-      newPkg:n=>`Found ${n} new package${n>1?'s':''}!`,
-      delivered:c=>`Your ${c} package was delivered! 🎉`,
-      bye:['Got it. Bye-bye, package!','Archived ✓'],
-      checking:'Let me check…', blocked:'Hmm, parcelsapp won\'t let me in. Try another browser in ⚙?',
-      sleep:'zzz…', wake:'Oh! I wasn\'t sleeping!',
+    view(){
+      const L = T(), p = L.p, s = P(), items = s.items || [];
+      const next = s.busy ? p.checking : s.next_check ? p.next(hhmm(s.next_check)) : '';
+      return {
+        title: p.list + (items.length ? ` · ${items.length}` : ''),
+        html: items.length ? items.map(i => pkRow(i, true)).join('') : `<div class="ln dim">${p.none}</div>`,
+        foot: `<span class="sp">${esc(next)}</span><button class="lnk" ${s.busy?'disabled':''} onclick="fcall('parcels','check')">${esc(p.checkNow)}</button>`,
+        input: {ph: p.addPh, btn: p.add, async submit(v){
+          const r = await api().feature('parcels', 'add', v);
+          if(!r || !r.ok) return {err: p.tooShort};
+          load(); return {msg: p.added(r.number)};
+        }},
+      };
     },
   },
-  zh: {
-    appName:'快递', noPackages:'暂无快递', delivered:'已送达',
-    pin:'窗口置顶', unpin:'已置顶（点击取消）', refreshAll:'全部刷新（扫描 Gmail + 查询全部）',
-    refreshing:'刷新中…', add:'手动添加单号', addBtn:'添加', addPh:'输入单号，回车添加',
-    settings:'设置', minimize:'最小化', quit:'退出',
-    refreshOne:'刷新这一条', open:'在 parcelsapp 打开', archiveNow:'归档（不再追踪）',
-    confirm:'✓ 确认', confirmTip:'确认收到并归档', copy:'点击复制', copied:'已复制',
-    archivedToast:'已归档', addedToast:'已添加，正在查询', tooShort:'单号太短',
-    waiting:'等待首次查询…', updating:'正在刷新…',
-    showAll:n=>`展开全部 ${n} 条 ▾`, showLess:'收起 ▴', updated:a=>`更新于 ${a}`,
-    justNow:'刚刚', minAgo:m=>`${m} 分钟前`, hrAgo:h=>`${h} 小时前`, dayAgo:d=>`${d} 天前`,
-    language:'语言', screenSize:'屏幕尺寸', screenSizeHint:'窗口和字号一起缩放，点了立即生效。',
-    archived:'已归档', restore:'恢复', noArchived:'暂无归档记录',
-    tracking:'查询', browser:'读取 parcelsapp 用的浏览器',
-    browserHint:'如果查询被拦截或拿不到数据，换一个浏览器试试。Firefox / WebKit / Chromium 第一次使用时会自动下载。',
-    headless:'后台运行浏览器（不显示窗口）', interval:'刷新间隔（分钟）',
-    gmail:'Gmail', gmailAddr:'Gmail 地址', appPw:'应用专用密码',
-    pwHint:'Google 账号 → 安全性 → 两步验证 → 应用专用密码。保存在 macOS 钥匙串。',
-    pwSaved:'✓ 已保存密码。', pwKeep:'留空表示不修改', scanDays:'扫描最近多少天的邮件',
-    save:'保存', cancel:'取消', saved:'已保存',
-    on:'已置顶', off:'已取消置顶',
-    browsers:{chrome:'Google Chrome', msedge:'Microsoft Edge', brave:'Brave', chromium:'Chromium（内置）', firefox:'Firefox', webkit:'WebKit（Safari 内核）'},
-    msg:{
-      no_gmail:'未设置 Gmail，点 ⚙ 设置（或点 ＋ 手动添加）',
-      reading_gmail:'正在读取 Gmail…', gmail_error:a=>`Gmail 读取失败：${a}`,
-      checking:n=>`正在查询 ${n} 个单号…`, error:a=>`出错：${a}`,
-      installing:b=>`正在下载 ${b}…（仅第一次）`, installed:b=>`${b} 已就绪`, install_failed:b=>`${b} 下载失败`,
+  sysmon: {
+    view(){
+      const S = T().sys, ok = (state.f.sysmon || {}).ok !== false;
+      const rows = ['cpu','ram','down','up'].map(k => `<div class="chart"><div class="hd"><b>${S[k]}</b><span class="v" id="sv_${k}"></span></div>
+        <canvas id="sc_${k}"></canvas></div>`).join('');
+      // live view: the body is built once, the charts redraw every second
+      return {title: S.title, html: ok ? rows : `<div class="ln warn">${S.noPsutil}</div>`, foot: `<span class="sp" id="sysper"></span>`,
+        wide: true, live: true, after: () => sysmon.start(), close: () => sysmon.stop()};
     },
-    err:{
-      blocked:'被 parcelsapp 拦截，可在 ⚙ 里换一个浏览器',
-      no_data:'parcelsapp 没返回数据（单号太新或被限制），可在 ⚙ 里换一个浏览器',
-      browser_missing:b=>`没有找到 ${b}，请安装或在 ⚙ 里换一个浏览器`,
-      failed:a=>`查询失败：${a}`,
-    },
-    manual:'手动添加',
-    skin:'皮肤', skinHint:'添加自己的皮肤：把包含 skin.json + sheet.png 的文件夹放进 ui/skins。', noSkin:'无', sideLeft:'站在左边', sideRight:'站在右边',
-    pet:{
-      hello:['你好呀！快递交给我盯着～','欢迎回来！'],
-      summary:(n,d)=> n ? `有 ${n} 个快递在路上${d?`，${d} 个已经到啦！`:'。'}` : '现在没有快递，摸鱼中～',
-      poke:['嘿嘿，好痒～','有什么吩咐？','我一直在看着呢！','♪～'],
-      newPkg:n=>`发现 ${n} 个新快递！`,
-      delivered:c=>`你的 ${c} 快递送到啦！🎉`,
-      bye:['好的，拜拜～','已归档 ✓'],
-      checking:'我去查一下…', blocked:'唔，parcelsapp 不让我进…去 ⚙ 换个浏览器试试？',
-      sleep:'zzz…', wake:'诶！我、我没睡着！',
+  },
+  poke: { open(){ pet.poke(); return false; } },   // no view: she just reacts
+  skin: {
+    report(r){
+      const S = T().sk, j = (r.data || {}).job || {}, nm = esc(j.name || '');
+      let l;
+      if(!j.done) l = S.run(nm, esc(T().csLabels[j.label] || j.label || ''), Math.min(j.step + 1, j.total), j.total) + '<span class="dots"></span>';
+      else if(j.error === 'cancelled') l = S.cancelled(nm);
+      else if(j.error) l = `<span class="warn">${esc(S.err(j.name || '', j.error))}</span>`;
+      else if(j.failed && j.failed.length) l = S.partial(nm, esc(j.failed.map(f => T().csLabels[f] || f).join(', ')));
+      else l = S.done(nm);
+      return {html: `<div class="ln">${l}</div>`};
     },
   },
 };
-let lang = 'en';
-const T = () => I18N[lang] || I18N.en;
-const browserName = k => T().browsers[k] || k;
 
-function errText(code){
-  if(!code) return '';
-  const E = T().err, [k, ...rest] = String(code).split(':'), arg = rest.join(':');
-  if(k === 'blocked' || k === 'no_data') return E[k];
-  if(k === 'browser_missing') return E.browser_missing(browserName(arg));
-  if(k === 'failed') return E.failed(arg);
-  return code; // older entries stored as plain text
+/* ---------------- system monitor charts (candlesticks) ---------------- */
+const fmtRate = b => b < 1024 ? Math.round(b) + ' B/s' : b < 1048576 ? (b/1024).toFixed(b < 10240 ? 1 : 0) + ' KB/s' : (b/1048576).toFixed(1) + ' MB/s';
+const fmtGB = b => (b / 1073741824).toFixed(1);
+const SLOTS = 36;
+const sysmon = {
+  timer: null,
+  start(){ this.stop(); this.tick(); this.timer = setInterval(() => this.tick(), 1000); },
+  stop(){ clearInterval(this.timer); this.timer = null; },
+  colors(){
+    const c = (state.f.sysmon || {}).colors || 'auto';
+    const redUp = c === 'red_up' || (c === 'auto' && lang === 'zh');
+    const R = '#e5484d', G = '#2f9e5b';
+    return redUp ? {up: R, down: G} : {up: G, down: R};
+  },
+  async tick(){
+    if(view !== 'sysmon') return this.stop();
+    const d = await api().feature('sysmon', 'candles', null, SLOTS);
+    if(!d || !d.series || view !== 'sysmon') return;
+    const S = T().sys, now = d.now || {}, info = d.info || {};
+    const vals = {
+      cpu: now.cpu != null ? `${Math.round(now.cpu)}%` + (info.cores ? ` · ${info.cores}${lang === 'zh' ? ' 核' : ' cores'}` : '') : '',
+      ram: now.ram != null ? `${Math.round(now.ram)}%` + (info.ram_total ? ` · ${fmtGB(info.ram_used)}/${fmtGB(info.ram_total)} GB` : '') : '',
+      down: now.down != null ? '↓ ' + fmtRate(now.down) : '', up: now.up != null ? '↑ ' + fmtRate(now.up) : '',
+    };
+    for(const k of ['cpu','ram','down','up']){
+      const v = $('sv_' + k); if(v) v.textContent = vals[k] || S.warming;
+      this.draw($('sc_' + k), d.series[k] || [], k === 'cpu' || k === 'ram' ? 100 : null);
+    }
+    const per = $('sysper'); if(per) per.textContent = S.per(d.period);
+  },
+  draw(cv, cs, fixedMax){
+    if(!cv) return;
+    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    if(cv.width !== Math.round(W * dpr)){ cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    const pad = 4, max = fixedMax || Math.max(10240, ...cs.map(c => c.h)) * 1.12;
+    const y = v => H - pad - (v / max) * (H - pad * 2);
+    g.strokeStyle = '#00000012'; g.lineWidth = 1;
+    for(const f of [.25, .5, .75]){ const yy = Math.round(y(max * f)) + .5; g.beginPath(); g.moveTo(0, yy); g.lineTo(W, yy); g.stroke(); }
+    const col = this.colors(), sw = W / SLOTS, bw = Math.max(2, sw * 0.62), off = SLOTS - cs.length;
+    cs.forEach((c, i) => {
+      const x = (off + i) * sw + sw / 2, color = c.c >= c.o ? col.up : col.down;
+      g.strokeStyle = g.fillStyle = color; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(Math.round(x) + .5, y(c.h)); g.lineTo(Math.round(x) + .5, y(c.l)); g.stroke();   // wick
+      const top = y(Math.max(c.o, c.c)), h = Math.max(1.2, Math.abs(y(c.o) - y(c.c)));
+      g.fillRect(x - bw / 2, top, bw, h);                                                                  // body
+    });
+  },
+};
+
+/* ---------------- balloon ---------------- */
+const reports = () => state.reports || [];
+function balloonMode(){
+  if(reports().length) return 'report';
+  if(view) return 'view';
+  if(quip) return 'quip';
+  return null;
 }
-function msgText(m){
-  if(!m) return '';
-  const f = T().msg[m.code];
-  if(!f) return '';
-  const arg = (m.code==='installing'||m.code==='installed'||m.code==='install_failed') ? browserName(m.arg) : m.arg;
-  return typeof f === 'function' ? f(arg) : f;
+let shownView = null, viewCtl = null, viewInput = null;
+async function submitInput(){
+  const el = $('binText'), v = el.value.trim();
+  if(!v || !viewInput) return;
+  const r = await viewInput.submit(v) || {};
+  $('bmsg').textContent = r.err || r.msg || ''; $('bmsg').classList.toggle('err', !!r.err);
+  if(!r.err) el.value = '';
+  layout();
 }
-function applyStaticText(){
-  document.documentElement.lang = lang === 'zh' ? 'zh' : 'en';
-  document.querySelectorAll('[data-t]').forEach(el => el.textContent = T()[el.dataset.t]);
-  $('addToggle').title = T().add; $('setBtn').title = T().settings;
-  $('minBtn').title = T().minimize; $('quitBtn').title = T().quit;
-  $('addInput').placeholder = T().addPh; $('addBtn').textContent = T().addBtn;
+function renderBalloon(){
+  const mode = balloonMode(), b = $('balloon'), L = T();
+  if(viewCtl && (mode !== 'view' || shownView !== view)){ viewCtl.close && viewCtl.close(); viewCtl = null; shownView = null; }
+  b.classList.toggle('show', !!mode);
+  const inp = mode === 'view' && FEATURES[view].view && viewInput;
+  $('binput').classList.toggle('show', !!inp);
+  if(!inp){ $('bmsg').textContent = ''; }
+  if(!mode){ layout(); return; }
+  const body = $('bbody'), foot = $('bfoot');
+  body.classList.toggle('quip', mode === 'quip');
+  $('bhead').style.display = mode === 'quip' ? 'none' : '';
+  b.style.width = mode === 'quip' ? 'auto' : sizes().bw + 'px';
+  b.style.maxWidth = sizes().bw + 'px';
+  if(mode === 'report'){
+    const rs = reports();
+    reportIdx = Math.min(reportIdx, rs.length - 1);
+    const r = rs[reportIdx], F = FEATURES[r.feature] || {};
+    const out = F.report ? F.report(r) : {html: ''};
+    $('btitle').textContent = ((L.report[r.feature] || {})[r.kind]) || r.feature;
+    $('bpage').textContent = rs.length > 1 ? `${reportIdx + 1}/${rs.length}` : '';
+    $('bclose').style.display = 'none';
+    body.innerHTML = out.html;
+    foot.innerHTML = `<span class="sp">${out.link || (r.live || (r.data || {}).cached ? '' : hhmm(r.ts))}</span>` +
+      `<button class="okbtn" ${r.live ? 'disabled' : ''} onclick="ack(${r.id})">${r.live ? '…' : esc(L.ok)}</button>`;
+  } else if(mode === 'view'){
+    const v = FEATURES[view].view();
+    viewInput = v.input || null;
+    $('binput').classList.toggle('show', !!viewInput);
+    if(viewInput){ $('binText').placeholder = viewInput.ph; $('binBtn').textContent = viewInput.btn; }
+    $('btitle').textContent = v.title; $('bpage').textContent = ''; $('bclose').style.display = '';
+    if(shownView !== view || !v.live) body.innerHTML = v.html;
+    if(shownView !== view || !v.live) foot.innerHTML = v.foot || '';
+    if(v.wide){ b.style.width = b.style.maxWidth = sizes().bw + 40 + 'px'; }
+    if(shownView !== view){ shownView = view; viewCtl = v; v.after && v.after(); }
+  } else {
+    body.textContent = quip; foot.innerHTML = '';
+  }
+  layout();
 }
-
-/* ---------------- state & rendering ---------------- */
-const PREVIEW = 3;
-let expanded = false, state = {items: []}, openPanelId = null;
-const api = () => window.pywebview.api;
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const trackUrl = n => 'https://parcelsapp.com/en/tracking/' + encodeURIComponent(n);
-
-function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1400); }
-function ago(ts){
-  const m = Math.round((Date.now()/1000 - ts)/60), L = T();
-  if(m < 1) return L.justNow; if(m < 60) return L.minAgo(m);
-  const h = Math.round(m/60); return h < 24 ? L.hrAgo(h) : L.dayAgo(Math.round(h/24));
+// arg 'add': focus the balloon's input line (menu → Parcels → Add Tracking Number…)
+function openFeature(id, arg){
+  const F = FEATURES[id]; if(!F) return;
+  hideHover();
+  if(F.open && F.open() === false) return;
+  if(!F.view) return;
+  quip = null; clearTimeout(quipTimer);
+  if(view !== id) $('bmsg').textContent = '';
+  view = id; renderBalloon();
+  if(arg === 'add' || viewInput) setTimeout(() => $('binText').focus(), 60);
 }
-
-function card(it){
-  const L = T(), d = !!it.delivered, n = esc(it.number);
-  const busyOne = (state.refreshing || []).includes(it.number);
-  const status = busyOne ? `<span class="meta">${L.updating}</span>`
-    : it.status ? (d?'✓ ':'') + esc(it.status) : `<span class="meta">${L.waiting}</span>`;
-  const meta = [it.location, it.event_time].filter(Boolean).map(esc).join(' · ');
-  const tip = esc(it.title || (it.source==='manual' ? L.manual : ''));
-  return `<div class="card ${d?'delivered':''}" title="${tip}">
-    <div class="row">
-      <span class="carrier ${esc(it.carrier)}">${esc(it.carrier||'?')}</span>
-      <span class="num" title="${L.copy}" onclick="copyNum('${n}')">${n}</span>
-      <span class="acts ${busyOne?'busy':''}">
-        <button class="icon" title="${L.refreshOne}" ${busyOne?'disabled':''} onclick="refreshOne('${n}')"><span class="${busyOne?'spin':''}">⟳</span></button>
-        <button class="icon" title="${L.open}" onclick="api().open_url('${trackUrl(it.number)}')">↗</button>
-        ${d?'':`<button class="icon" title="${L.archiveNow}" onclick="confirmItem('${n}')">🗄</button>`}
-      </span>
-      ${d?`<button class="confirm" title="${L.confirmTip}" onclick="confirmItem('${n}')">${L.confirm}</button>`:''}
-    </div>
-    <div class="st">${status}</div>
-    ${meta?`<div class="meta">${meta}</div>`:''}
-    ${it.error?`<div class="err">${esc(errText(it.error))}</div>`:''}
-  </div>`;
+function closeView(){ view = null; viewInput = null; $('binText').value = ''; renderBalloon(); }
+function say(text, ms = 3000){
+  if(!text || reports().length || view) return;
+  quip = text; renderBalloon();
+  clearTimeout(quipTimer); quipTimer = setTimeout(() => { quip = null; renderBalloon(); }, ms);
 }
-
-function render(){
-  const L = T(), items = state.items || [];
-  const nDelivered = items.filter(i => i.delivered).length;
-  // empty -> the whole widget is a single line
-  $('title').innerHTML = items.length
-    ? `📦 ${L.appName}<span class="badge">${items.length}</span>${nDelivered?`<span class="badge green" title="${L.delivered}">✓${nDelivered}</span>`:''}`
-    : `📦 <span class="sub">${L.noPackages}</span>`;
-
-  const shown = expanded ? items : items.slice(0, PREVIEW);
-  let html = shown.map(card).join('');
-  if(items.length > PREVIEW)
-    html += `<button class="expand" onclick="toggleExpand()">${expanded ? L.showLess : L.showAll(items.length)}</button>`;
-  $('list').innerHTML = html;
-
-  $('statusLine').textContent = msgText(state.message) || (state.busy ? L.refreshing : '');
-  const rb = $('refreshBtn');
-  rb.querySelector('.ico').classList.toggle('spin', !!state.busy);
-  rb.disabled = !!state.busy;
-  rb.title = state.busy ? L.refreshing : L.refreshAll + (state.last_run ? ' — ' + L.updated(ago(state.last_run)) : '');
-  $('pinBtn').classList.toggle('on', !!state.on_top);
-  $('pinBtn').title = state.on_top ? L.unpin : L.pin;
-  fitSoon();
+async function ack(id){
+  await api().ack_report(id);
+  state.reports = reports().filter(r => r.id !== id);
+  renderBalloon();
+  if(!state.reports.length){ pet.react('wave'); say(pick(T().pet.allDone), 2600); }
 }
+async function fcall(fid, method, ...args){ const r = await api().feature(fid, method, ...args); load(); return r; }
+async function gotIt(n){ await fcall('parcels', 'confirm', n); pet.react('wave'); }
+function copyNum(n){ navigator.clipboard?.writeText(n).catch(() => {}); }
 
 /* ---------------- layout ----------------
-   The window follows the content: one line when empty, capped by the screen-size preset.
-   With a skin, the panel's bottom edge sits at the character's hand height so it looks
-   like she is holding it, and the window grows to fit her. */
-let fitTimer = null, lastFit = '';
-function fitSoon(){ clearTimeout(fitTimer); fitTimer = setTimeout(fit, 30); }
-function contentHeight(){
-  let h = 0;
-  for(const id of ['mainHeader','statusLine','addRow','list']){
-    const el = $(id); if(el.offsetParent !== null || id === 'mainHeader') h += el.offsetHeight;
-  }
-  const list = $('list');
-  return h + Math.max(0, list.scrollHeight - list.offsetHeight) + 2;  // full content, not the clipped box
+   The window is as big as she and her balloon need. Her feet stay where they are: the
+   backend keeps the bottom corner on her side fixed while the window grows or shrinks. */
+function sizes(){
+  const sk = state.skin, z = state.zoom || .78;
+  const H = (sk ? (sk.display_height || 116) : 116) * PET_SCALE;
+  const W = sk ? sk.cell[0] * H / sk.cell[1] : H * .92;
+  return {W, H, bw: 262, bmax: Math.max(240, (state.max_h || 390) / z)};
 }
-function fit(){
-  if(!window.pywebview || !state.zoom) return;
-  const z = state.zoom, maxTotal = state.max_h / z, PW = state.base_w / z;
-  const app = $('main'), sk = pet.skin;
-  let W, H;
-  if(!sk){
-    app.style.width = app.style.height = app.style.bottom = '';
-    W = PW; H = openPanelId ? maxTotal : Math.min(contentHeight(), maxTotal);
-  } else {
-    const {w: SW, h: SH, hand, over} = pet.box;
-    const ph = openPanelId ? maxTotal - hand : Math.min(contentHeight(), maxTotal - hand);
-    app.style.width = PW + 'px'; app.style.height = ph + 'px'; app.style.bottom = hand + 'px';
-    // keep some headroom above her head for the speech bubble when the panel is short
-    W = PW + SW - over; H = Math.max(ph + hand, SH + 34);
+function hoverSpots(n){
+  // buttons on an arc over her head, leaning towards the free side (x from her left edge)
+  const {W, H} = sizes(), r = H * .58, cx = W / 2, cy = H * .3, out = [];
+  const a0 = -172, a1 = n > 3 ? -40 : -76;
+  for(let i = 0; i < n; i++){
+    const a = (n === 1 ? (a0 + a1) / 2 : a0 + (a1 - a0) * i / (n - 1)) * Math.PI / 180;
+    out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
   }
-  pet.place();
-  const key = Math.round(W) + 'x' + Math.round(H);
-  if(key === lastFit) return;
-  lastFit = key; api().fit(W, H);
+  return out;
 }
+let lastFit = '';
+function layout(){
+  const {W, H, bmax} = sizes(), right = (state.skin_side || 'right') === 'right';
+  const stage = $('stage'), b = $('balloon'), petEl = $('pet');
+  stage.className = right ? 'side-right' : 'side-left';
+  petEl.style.width = W + 'px'; petEl.style.height = H + 'px';
+  let SW, SH;
+  // room for the hover buttons is always kept, so the window doesn't jump when they appear
+  const spots = hoverSpots(((state.features || []).filter(f => f.hover)).length || 3);
+  // a button is 34px (40 when hovered) and its name label sits above it: keep room for both,
+  // or the window cuts the label off
+  const extraX = Math.max(0, -Math.min(...spots.map(s => s[0] - 48)));
+  const extraY = Math.max(0, -Math.min(...spots.map(s => s[1] - 50)));
+  SW = W + extraX; SH = H + extraY;
+  if(b.classList.contains('show')){
+    $('bbody').style.maxHeight = Math.max(80, bmax - H * .56 - 80) + 'px';
+    const over = W * .7, lift = H * .6;
+    b.style.bottom = lift + 'px';
+    b.style.left = b.style.right = '';
+    b.style[right ? 'right' : 'left'] = over + 'px';
+    SW = Math.max(SW, over + b.offsetWidth + 6);
+    SH = Math.max(SH, lift + b.offsetHeight + 8);
+  }
+  stage.style.width = SW + 'px'; stage.style.height = SH + 'px';
+  placeHover(SW, SH);
+  const key = Math.round(SW) + 'x' + Math.round(SH);
+  if(key !== lastFit && window.pywebview){ lastFit = key; api().fit(SW, SH); }
+}
+// the balloon's height changes while a report runs
+new ResizeObserver(() => layout()).observe($('balloon'));
 
+/* ---------------- hover buttons (idle mode) ---------------- */
+let hoverTimer = null;
+function buildHover(){
+  const fs = (state.features || []).filter(f => f.hover);
+  const key = fs.map(f => f.id).join() + lang;
+  const h = $('hover'); if(h.dataset.key === key) return;
+  h.dataset.key = key;
+  h.innerHTML = fs.map(f => `<button class="fbtn" data-f="${f.id}" onclick="openFeature('${f.id}')">${f.icon}
+    <span class="tip">${esc(lang === 'zh' ? f.name_zh : f.name)}</span></button>`).join('');
+  h.querySelectorAll('.fbtn').forEach(el => {
+    el.addEventListener('mouseenter', () => clearTimeout(hoverTimer));
+    el.addEventListener('mouseleave', () => hideHoverSoon());
+  });
+  lastFit = ''; layout();
+}
+function placeHover(SW, SH){
+  const {W, H} = sizes(), right = (state.skin_side || 'right') === 'right';
+  const btns = [...$('hover').querySelectorAll('.fbtn')], spots = hoverSpots(btns.length);
+  const petLeft = right ? SW - W : 0, petTop = SH - H;
+  btns.forEach((el, i) => {
+    let [x, y] = spots[i];
+    if(!right) x = W - x;          // mirror: lean the other way when she stands on the left
+    el.style.left = (petLeft + x) + 'px'; el.style.top = (petTop + y) + 'px';
+  });
+}
+const idle = () => !reports().length && !view && !drag;
+function showHover(){ if(!idle()) return; clearTimeout(hoverTimer); quip = null; renderBalloon(); $('hover').classList.add('show'); }
+function hideHover(){ clearTimeout(hoverTimer); $('hover').classList.remove('show'); }
+function hideHoverSoon(){ clearTimeout(hoverTimer); hoverTimer = setTimeout(hideHover, 700); }
+$('hit').addEventListener('mouseenter', () => showHover());
+$('hit').addEventListener('mouseleave', () => hideHoverSoon());
+
+/* ---------------- state ---------------- */
 async function load(){
-  const prev = state;
-  state = await api().get_state();
-  if(state.lang && state.lang !== lang){ lang = state.lang; applyStaticText(); }
-  setZoom(state.zoom);
+  prevState = state;
+  const s = await api().get_state();
+  if(!s) return;
+  state = s;
+  if(state.lang !== lang){ lang = state.lang; applyStaticText(); $('hover').dataset.key = ''; }
+  $('root').style.setProperty('--z', state.zoom || .78);
+  if(prevState.size_preset && prevState.size_preset !== state.size_preset){ pet.skin = null; lastFit = ''; }
   pet.setSkin(state.skin, state.skin_side);
-  render();
-  pet.onState(prev, state);
+  buildHover();
+  // keep showing the same report while others come and go
+  const curId = (prevState.reports || [])[reportIdx]?.id;
+  const i = reports().findIndex(r => r.id === curId);
+  reportIdx = i >= 0 ? i : 0;
+  if(reports().length) hideHover();
+  renderBalloon();
+  pet.onState(prevState, state);
 }
 window.onBackendUpdate = () => load();
-function setZoom(z){ if(z) $('root').style.setProperty('--z', z); }
 
-/* ---------------- actions ---------------- */
-function toggleExpand(){ expanded = !expanded; render(); }
-function copyNum(n){ navigator.clipboard?.writeText(n).then(()=>toast(T().copied), ()=>{}); }
-async function confirmItem(n){
-  await api().confirm(n);
-  if(pet.skin){ pet.play('wave'); pet.say(pick(T().pet.bye)); } else toast(T().archivedToast);
-  load();
-}
-async function refreshAll(){ await api().refresh_now(); state.busy = true; render(); if(pet.skin) pet.say(T().pet.checking, 1800); }
-async function refreshOne(n){ await api().refresh_one(n); state.refreshing = [...(state.refreshing||[]), n]; render(); }
-async function togglePin(){
-  state.on_top = await api().set_on_top(!state.on_top);
-  render(); toast(state.on_top ? T().on : T().off);
-}
-function toggleAdd(force){
-  const show = force ?? !$('addRow').classList.contains('show');
-  $('addRow').classList.toggle('show', show); $('addToggle').classList.toggle('on', show);
-  if(show) $('addInput').focus();
-  fitSoon();
-}
-async function addManual(){
-  const v = $('addInput').value.trim(); if(!v) return;
-  const r = await api().add_manual(v, '');
-  if(r.ok){ $('addInput').value=''; toggleAdd(false); toast(T().addedToast); load(); }
-  else toast(T().tooShort);
-}
-
-/* ---------------- panels ---------------- */
-async function openPanel(id){
-  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('show', p.id === id));
-  openPanelId = id; lastFit = ''; fit();
-  if(id === 'settings') await fillSettings();
-  if(id === 'archive') await fillArchive();
-}
-function closePanel(){
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('show'));
-  openPanelId = null; lastFit = ''; fitSoon();
-}
-function seg(el, opts, cur, fn){
-  $(el).innerHTML = opts.map(o => `<button class="${o.key===cur?'on':''}" onclick="${fn}('${o.key}')">${esc(o.label)}</button>`).join('');
-}
-async function fillSettings(){
-  const s = await api().get_settings(), L = T();
-  seg('langSeg', [{key:'en',label:'English'},{key:'zh',label:'中文'}], lang, 'pickLang');
-  seg('sizeSeg', (state.presets||[]).map(p => ({key:p.key, label: p.key==='ext' ? (lang==='zh'?'外接屏':'External') : p.label})), state.size_preset, 'pickSize');
-  $('s_browser').innerHTML = s.browsers.map(b => `<option value="${b}" ${b===s.browser?'selected':''}>${esc(browserName(b))}</option>`).join('');
-  $('s_headless').checked = !!s.headless;
-  $('s_int').value = s.interval_minutes; $('s_days').value = s.scan_days;
-  $('s_addr').value = s.gmail_address || ''; $('s_pw').value = '';
-  $('s_pw').placeholder = s.has_password ? L.pwKeep : '';
-  $('pwHint').textContent = (s.has_password ? L.pwSaved : '') + L.pwHint;
-  const arch = await api().get_archived();
-  $('archCount').textContent = (arch.length ? arch.length + ' ' : '') + '›';
-  await fillSkins();
-}
-async function pickLang(k){ lang = await api().set_lang(k); applyStaticText(); fillSettings(); render(); }
-async function pickSize(k){
-  const r = await api().set_size(k);
-  if(r){ Object.assign(state, {size_preset:k, zoom:r.zoom, max_h:r.max_h, base_w:r.base_w}); setZoom(r.zoom); lastFit = ''; fit(); fillSettings(); }
-}
-async function fillSkins(){
-  const L = T(), skins = await api().get_skins(), cur = pet.skin ? pet.skin.id : '';
-  $('skinRow').innerHTML = [{id:'', name:L.noSkin}, ...skins].map(s => {
-    const label = esc(lang==='zh' && s.name_zh ? s.name_zh : s.name);
-    const th = s.thumb ? `style="background-image:url('skins/${encodeURIComponent(s.id)}/${encodeURIComponent(s.thumb)}')"` : '';
-    return `<div class="skinopt ${s.id===cur?'on':''}" onclick="pickSkin('${esc(s.id)}')"><div class="th" ${th}>${s.thumb?'':'∅'}</div>${label}</div>`;
-  }).join('');
-  seg('sideSeg', [{key:'left',label:L.sideLeft},{key:'right',label:L.sideRight}], state.skin_side, 'pickSide');
-  $('sideSeg').style.display = cur ? '' : 'none';
-}
-async function pickSkin(id){
-  const r = await api().set_skin(id, null);
-  state.skin = r.skin; state.skin_side = r.skin_side;
-  pet.setSkin(r.skin, r.skin_side); lastFit = ''; fit(); fillSkins();
-  if(r.skin){ pet.play('jump'); pet.say(pick(T().pet.hello)); }
-}
-async function pickSide(side){
-  const r = await api().set_skin(pet.skin ? pet.skin.id : '', side);
-  state.skin_side = r.skin_side; pet.setSkin(r.skin, r.skin_side); lastFit = ''; fit(); fillSkins();
-}
-async function saveSettings(){
-  await api().save_settings({
-    gmail_address: $('s_addr').value, app_password: $('s_pw').value,
-    interval_minutes: $('s_int').value, scan_days: $('s_days').value,
-    headless: $('s_headless').checked, browser: $('s_browser').value,
-  });
-  closePanel(); toast(T().saved); load();
-}
-async function fillArchive(){
-  const rows = await api().get_archived(), L = T();
-  $('archiveList').innerHTML = rows.length ? rows.map(it => `<div class="card">
-      <div class="row"><span class="carrier ${esc(it.carrier)}">${esc(it.carrier)}</span>
-      <span class="num" onclick="copyNum('${esc(it.number)}')">${esc(it.number)}</span>
-      <button class="icon" title="${L.restore}" onclick="restore('${esc(it.number)}')">↩</button></div>
-      <div class="meta">${esc(it.status||'')}</div></div>`).join('')
-    : `<div class="empty">${L.noArchived}</div>`;
-}
-async function restore(n){ await api().unarchive(n); fillArchive(); load(); }
-
-/* ---------------- skin character ----------------
-   Behaviour:
-   - stands beside the panel; the panel's bottom edge is at her hands, as if she holds it
-   - idle: blinks, fidgets, glances around, sometimes peeks at the panel
-   - mouse over the panel: she turns to read it with you
-   - refreshing: thinking pose; new package: cheer; delivered: jump + cheer
-   - click her: wave / jump / shy and tell you a summary
-   - dragging the window: she runs in the drag direction
-   - no mouse activity for 5 min: dozes off; move the mouse to wake her */
-const pick = a => Array.isArray(a) ? a[Math.floor(Math.random() * a.length)] : a;
+/* ---------------- the character ----------------
+   - idle: blinks, fidgets, glances around; dozes off after 5 min without the mouse
+   - a job running: thinking pose; delivered: jump + cheer; new package: cheer; failure: shy
+   - mouse on the balloon: she looks at it with you
+   - click her: poke (a random move and a line); right-click: the menu
+   - dragging her: she runs in the drag direction */
 const SLEEP_AFTER_MS = 5 * 60 * 1000;
+const busy = () => reports().some(r => r.live) || !!P().busy;
 const pet = {
-  skin: null, side: 'right', box: {w:0, h:0, hand:0, over:0}, scale: 1,
-  cur: null, timer: null, looking: false, sleeping: false, walking: null,
-  lastActive: Date.now(), greeted: false, bubbleTimer: null, idleTimer: null, clicks: 0,
+  skin: null, side: 'right', scale: 1, cur: null, timer: null, looking: false, sleeping: false, walking: null,
+  lastActive: Date.now(), greeted: false, idleTimer: null,
 
   setSkin(sk, side){
     side = side === 'left' ? 'left' : 'right';
-    const id = sk ? sk.id : '';
-    if(id === (this.skin ? this.skin.id : '') && side === this.side) return;
-    this.skin = sk; this.side = side;
-    const stage = $('stage');
-    stage.classList.toggle('skinned', !!sk);
-    stage.classList.toggle('side-left', side === 'left');
-    stage.classList.toggle('side-right', side !== 'left');
+    if((sk ? sk.id : '') === (this.skin ? this.skin.id : '') && side === this.side) return;
+    this.skin = sk; this.side = side; lastFit = '';
     clearTimeout(this.timer); clearTimeout(this.idleTimer); this.cur = null;
-    if(!sk){ this.hideBubble(); return; }
-    const [cw, ch] = sk.cell, H = sk.display_height || 116, s = H / ch, W = cw * s;
+    if(!sk) return;
+    const [cw, ch] = sk.cell, s = sizes().H / ch;
     this.scale = s;
-    this.box = {w: W, h: H, hand: H * (1 - (sk.hand_y ?? 0.62)), over: W * (sk.overlap ?? 0.24)};
-    $('pet').style.width = W + 'px'; $('pet').style.height = H + 'px';
     const url = `skins/${encodeURIComponent(sk.id)}/${encodeURIComponent(sk.sheet)}`, sp = $('sprite');
     sp.style.backgroundImage = `url('${url}')`;
     const img = new Image();
@@ -575,8 +514,6 @@ const pet = {
     img.src = url;
     this.toBase(); this.scheduleIdle();
   },
-
-  /* ---- animation player ---- */
   frame(row, col){
     const [cw, ch] = this.skin.cell, s = this.scale;
     $('sprite').style.backgroundPosition = `-${col * cw * s}px -${row * ch * s}px`;
@@ -596,83 +533,59 @@ const pet = {
     c.i++;
     if(c.i >= c.seq.length){
       if(c.a.loop) c.i = 0;
-      else if(c.a.hold && !c.then) return;            // stay on the last frame
+      else if(c.a.hold && !c.then) return;
       else { this.timer = setTimeout(() => { const t = c.then; this.cur = null; t ? t() : this.toBase(); }, dt); return; }
     }
     this.timer = setTimeout(() => this.tick(), dt);
   },
   isBase(){ return !this.cur || ['idle','think','sleep'].includes(this.cur.name) || this.cur.base; },
-  lookAnim(){ return this.side === 'right' ? 'look_left' : 'look_right'; },  // face the panel
+  lookAnim(){ return this.side === 'right' ? 'look_left' : 'look_right'; },   // towards the balloon
   toBase(){
     if(!this.skin) return;
     if(this.walking) return this.play('walk_' + this.walking);
     if(this.sleeping) return this.play('sleep');
-    if(state.busy) return this.play('think');
+    if(busy()) return this.play('think');
     if(this.looking){ this.play(this.lookAnim()); this.cur.base = true; return; }
     this.play('idle');
   },
-  // one-shot reactions; base poses (idle/think/sleep/look) resume afterwards
-  react(name, line, ms){
-    if(!this.skin) return;
-    if(this.sleeping) this.sleeping = false;
-    this.play(name);
-    if(line) this.say(line, ms);
+  react(name){ if(!this.skin) return; this.sleeping = false; this.play(name); },
+  poke(){
+    if(this.sleeping){ this.wake(); return; }
+    this.react(pick(['wave','jump','shy','cheer','fidget','look_around']));
+    say(pick(T().pet.poke), 2500);
   },
-
-  /* ---- idle variety ---- */
   scheduleIdle(){
     clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => { this.idleAct(); this.scheduleIdle(); }, 2500 + Math.random() * 4000);
   },
   idleAct(){
-    if(!this.skin || this.sleeping || this.walking || this.looking || state.busy || !this.isBase()) return;
+    if(!this.skin || this.sleeping || this.walking || this.looking || busy() || !this.isBase()) return;
     const r = Math.random();
-    if(r < .55) this.play('blink');
-    else if(r < .70) this.play('fidget');
-    else if(r < .82){                                   // peek at the panel, then look back
-      const look = this.lookAnim(), f = this.skin.anims[look].frames;
-      this.play(look, () => setTimeout(() => this.play(look, () => this.toBase(), [...f].reverse()), 1200));
-    }
-    else if(r < .94) this.play('look_around');
+    if(r < .6) this.play('blink');
+    else if(r < .75) this.play('fidget');
+    else if(r < .9) this.play('look_around');
     else this.play('shy');
   },
-
-  /* ---- events ---- */
   onState(prev, cur){
     if(!this.skin) return;
-    const L = T().pet, items = cur.items || [], before = prev.items;
-    if(!this.greeted){
-      this.greeted = true;
-      this.play('jump', () => { this.play('wave'); });
-      this.say(pick(L.hello)); return;
+    const L = T().pet;
+    if(!this.greeted){ this.greeted = true; this.play('jump', () => this.play('wave')); if(!reports().length) say(pick(L.hello)); return; }
+    // a report just finished: react to what it says
+    const was = Object.fromEntries((prev.reports || []).map(r => [r.id, r]));
+    for(const r of cur.reports || []){
+      const before = was[r.id];
+      if(r.live || (before && !before.live)) continue;
+      const s = (r.data || {}).sum;
+      if(s && s.delivered.length) this.play('jump', () => this.play('cheer'));
+      else if(s && s.new.length) this.react('cheer');
+      else if((s && s.errors.length) || (r.data || {}).err) this.react('shy');
+      else this.react('wave');
+      return;
     }
-    if(!before) return;
-    const was = Object.fromEntries(before.map(i => [i.number, i]));
-    const fresh = items.filter(i => !was[i.number]);
-    const delivered = items.filter(i => i.delivered && was[i.number] && !was[i.number].delivered);
-    const blocked = items.find(i => (i.error === 'blocked' || i.error === 'no_data') && (!was[i.number] || was[i.number].error !== i.error));
-    if(delivered.length){
-      this.sleeping = false;
-      this.play('jump', () => this.play('cheer'));
-      this.say(L.delivered(delivered[0].carrier || ''), 5000);
-    } else if(fresh.length){
-      this.react('cheer', L.newPkg(fresh.length));
-    } else if(blocked){
-      this.react('shy', L.blocked, 5000);
-    } else if(!!prev.busy !== !!cur.busy && this.isBase()){
-      this.toBase();
-    }
-    const m = cur.message, pm = prev.message;
-    if(m && m.code && (!pm || pm.code !== m.code) && !['checking','reading_gmail'].includes(m.code)) this.say(msgText(m), 4500);
+    const wasBusy = (prev.reports || []).some(r => r.live) || !!((prev.f || {}).parcels || {}).busy;
+    if(busy() !== wasBusy && this.isBase()) this.toBase();
   },
-  click(){
-    const L = T().pet, items = state.items || [];
-    if(this.sleeping){ this.wake(); return; }
-    this.clicks++;
-    const line = this.clicks % 2 ? L.summary(items.length, items.filter(i => i.delivered).length) : pick(L.poke);
-    this.react(pick(['wave','jump','shy','cheer']), line);
-  },
-  hoverPanel(on){
+  hoverBalloon(on){
     if(!this.skin || this.looking === on) return;
     this.looking = on;
     if(this.sleeping || this.walking || !this.isBase()) return;
@@ -680,60 +593,34 @@ const pet = {
     if(on){ this.play(look); this.cur.base = true; }
     else this.play(look, () => this.toBase(), [...this.skin.anims[look].frames].reverse());
   },
-  walk(dir){
-    if(!this.skin || this.walking === dir) return;
-    this.walking = dir; this.sleeping = false; this.play('walk_' + dir);
-  },
+  walk(dir){ if(!this.skin || this.walking === dir) return; this.walking = dir; this.sleeping = false; this.play('walk_' + dir); },
   stopWalk(){ if(this.walking){ this.walking = null; this.toBase(); } },
-  activity(){
-    this.lastActive = Date.now();
-    if(this.sleeping) this.wake();
-  },
-  wake(){
-    this.sleeping = false;
-    this.play('wake', () => this.play('wave'));
-    this.say(T().pet.wake, 2500);
-  },
+  activity(){ this.lastActive = Date.now(); if(this.sleeping) this.wake(); },
+  wake(){ this.sleeping = false; this.play('wake', () => this.play('wave')); say(T().pet.wake, 2200); },
   checkSleep(){
-    if(!this.skin || this.sleeping || state.busy || this.walking) return;
+    if(!this.skin || this.sleeping || busy() || this.walking || reports().length || view) return;
     if(Date.now() - this.lastActive > SLEEP_AFTER_MS){
-      this.sleeping = true; this.hideBubble();
-      this.play('doze', () => { this.play('sleep'); this.say(T().pet.sleep, 2500); });
+      this.sleeping = true; quip = null; renderBalloon();
+      this.play('doze', () => this.play('sleep'));
     }
   },
-
-  /* ---- speech bubble, next to her head ---- */
-  place(){
-    const b = $('bubble'), {w, h} = this.box;
-    b.style.bottom = (h * 0.74) + 'px';
-    b.style.left = b.style.right = '';
-    if(this.side === 'right') b.style.right = (w * 0.70) + 'px'; else b.style.left = (w * 0.70) + 'px';
-  },
-  say(text, ms = 3500){
-    if(!this.skin || !text) return;
-    const b = $('bubble'); this.place();
-    b.textContent = text; b.classList.add('show');
-    clearTimeout(this.bubbleTimer);
-    this.bubbleTimer = setTimeout(() => this.hideBubble(), ms);
-  },
-  hideBubble(){ $('bubble').classList.remove('show'); },
 };
-$('main').addEventListener('mouseenter', () => pet.hoverPanel(true));
-$('main').addEventListener('mouseleave', () => pet.hoverPanel(false));
+$('balloon').addEventListener('mouseenter', () => pet.hoverBalloon(true));
+$('balloon').addEventListener('mouseleave', () => pet.hoverBalloon(false));
 document.addEventListener('mousemove', () => pet.activity(), {passive: true});
 setInterval(() => pet.checkSleep(), 15000);
+// right-click: the menu (same as the menu bar icon)
+document.addEventListener('contextmenu', e => { e.preventDefault(); hideHover(); api().context_menu(); });
 
 /* ---------------- dragging ----------------
-   Drag the header (or the character) to move the window. Moves by the mouse delta from
-   where the drag started instead of absolute coordinates, which jump on multi-display /
-   scaled setups. A press on the character without movement counts as a click. */
+   Drag her (or the balloon's title) to move the window. A press on her without moving is a poke. */
 let drag = null;
 document.addEventListener('mousedown', async e => {
   if(e.button !== 0) return;
-  const h = e.target.closest('header'), onPet = e.target.id === 'hit';
-  if(!onPet && (!h || e.target.closest('button,input,select'))) return;
+  const onPet = e.target.id === 'hit', head = e.target.closest('.bhead');
+  if(!onPet && (!head || e.target.closest('button'))) return;
   e.preventDefault();
-  const d = drag = {sx:e.screenX, sy:e.screenY, lx:e.screenX, pos:null, target:null, busy:false, el:h || $('hit'), onPet, moved:0};
+  const d = drag = {sx:e.screenX, sy:e.screenY, lx:e.screenX, pos:null, target:null, busy:false, el: onPet ? $('hit') : head, onPet, moved:0};
   d.el.classList.add('dragging');
   d.pos = await api().get_pos();
   pump(d);
@@ -742,6 +629,7 @@ document.addEventListener('mousemove', e => {
   if(!drag) return;
   drag.target = [e.screenX - drag.sx, e.screenY - drag.sy];
   drag.moved = Math.max(drag.moved, Math.abs(drag.target[0]) + Math.abs(drag.target[1]));
+  if(drag.moved > 4) hideHover();
   const step = e.screenX - drag.lx;
   if(Math.abs(step) >= 2){ pet.walk(step > 0 ? 'right' : 'left'); drag.lx = e.screenX; }
   pump(drag);
@@ -750,17 +638,17 @@ document.addEventListener('mouseup', () => {
   if(!drag) return;
   const d = drag; drag = null;
   d.el.classList.remove('dragging'); pump(d); pet.stopWalk();
-  if(d.onPet && d.moved < 4) pet.click();
+  if(d.onPet && d.moved < 4){ hideHover(); pet.poke(); }
 });
 async function pump(d = drag){
   if(!d || !d.pos || !d.target || d.busy) return;
   const [dx, dy] = d.target; d.target = null; d.busy = true;
   try{ await api().move(d.pos[0] + dx, d.pos[1] + dy); } finally { d.busy = false; }
-  if(d.target) pump(d);   // only the latest position is sent: no backlog, no lag
+  if(d.target) pump(d);
 }
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && view) closeView(); });
 
-window.addEventListener('pywebviewready', () => { applyStaticText(); load(); setInterval(load, 60000); });
-applyStaticText();
+window.addEventListener('pywebviewready', () => { load(); setInterval(load, 60000); });
 </script>
 </body>
 </html>

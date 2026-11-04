@@ -1,3 +1,6 @@
 pywebview>=5.0
 playwright>=1.44
 keyring>=24
+pillow>=10
+numpy>=1.26
+psutil>=5.9

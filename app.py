@@ -1,12 +1,13 @@
-"""Parcel Widget — a small macOS desktop widget that tracks packages.
+"""Parcel Widget: a desktop character who does little jobs for you.
 
-- Every hour: scan Gmail for tracking numbers -> read the latest event for each on parcelsapp.com
-- Shows the first 3 active shipments, expandable to all
-- Delivered shipments turn green; confirm with ✅ to archive
+- The window is just the character and her speech balloon (ui/index.html).
+- Her jobs are features (features/): parcel tracking, a system monitor, poke, ... Each one
+  runs at launch and reports in her balloon; you confirm the report and it goes on in the
+  background on its own schedule, speaking up again only when something changes.
+- Idle: hover over her for a button per feature; right-click her (or use the menu bar icon)
+  for the menu (menus.py); detailed settings live in a separate window (ui/settings.html).
 """
-import json
 import os
-import subprocess
 import sys
 import threading
 import time
@@ -17,275 +18,221 @@ import webview
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from db import DB  # noqa: E402
-from tracker import BROWSERS, DEFAULT_BROWSER  # noqa: E402
-from tracking_parser import guess_carrier  # noqa: E402
-
-APP_DIR = os.path.expanduser("~/Library/Application Support/ParcelWidget")
-os.makedirs(APP_DIR, exist_ok=True)
-CONFIG_PATH = os.path.join(APP_DIR, "config.json")
-LOG_PATH = os.path.join(APP_DIR, "widget.log")
-KEYRING_SERVICE = "ParcelWidget-Gmail"
-
-DEFAULT_CONFIG = {
-    "gmail_address": "",
-    "interval_minutes": 60,
-    "scan_days": 14,
-    "headless": True,        # run the tracking browser invisibly
-    "browser": DEFAULT_BROWSER,
-    "always_on_top": False,
-    "size_preset": "14",
-    "lang": "en",
-    "skin": "whale-maid",    # folder name under ui/skins, "" = no skin
-    "skin_side": "right",    # which side of the panel the character stands on
-}
-SKINS_DIR = os.path.join(HERE, "ui", "skins")
+from core import (APP_DIR, IS_MAC, SIZE_PRESETS, SKINS_DIR, UI_DIR, later, list_skins, load_config,  # noqa: E402,F401
+                  log, preset, save_config)
+from features import make_features  # noqa: E402
+from reports import Reports  # noqa: E402
 
 
-def list_skins():
-    """Every folder in ui/skins that has a skin.json is a skin."""
-    out = []
-    if os.path.isdir(SKINS_DIR):
-        for d in sorted(os.listdir(SKINS_DIR)):
-            p = os.path.join(SKINS_DIR, d, "skin.json")
-            if os.path.isfile(p):
-                try:
-                    with open(p, encoding="utf-8") as f:
-                        m = json.load(f)
-                    m["id"] = d
-                    out.append(m)
-                except Exception as e:
-                    log("bad skin %s: %r" % (d, e))
-    return out
-
-# window width (px), max height (px) and UI zoom per screen size
-SIZE_PRESETS = {
-    "13": {"label": '13"', "w": 248, "h": 360, "zoom": 0.74},
-    "14": {"label": '14"', "w": 262, "h": 390, "zoom": 0.78},
-    "15": {"label": '15"', "w": 276, "h": 420, "zoom": 0.82},
-    "16": {"label": '16"', "w": 292, "h": 450, "zoom": 0.87},
-    "ext": {"label": "External", "w": 320, "h": 500, "zoom": 0.95},
-}
-# browsers Playwright can download by itself; others must be installed by the user
-AUTO_INSTALL = {"chromium": "chromium", "firefox": "firefox", "webkit": "webkit"}
-
-
-def preset(cfg):
-    return SIZE_PRESETS.get(str(cfg.get("size_preset")), SIZE_PRESETS["14"])
-
-
-def log(msg):
-    line = time.strftime("%Y-%m-%d %H:%M:%S ") + str(msg)
-    print(line)
-    try:
-        with open(LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(line + "\n")
-    except Exception:
-        pass
-
-
-def load_config():
-    cfg = dict(DEFAULT_CONFIG)
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, encoding="utf-8") as f:
-                cfg.update(json.load(f))
-        except Exception:
-            pass
-    return cfg
-
-
-def save_config(cfg):
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
-
-
-def get_password(address):
-    try:
-        import keyring
-        return keyring.get_password(KEYRING_SERVICE, address) or ""
-    except Exception:
-        return ""
-
-
-def set_password(address, pw):
-    import keyring  # stored in the macOS Keychain, never in a plain file
-    keyring.set_password(KEYRING_SERVICE, address, pw)
-
-
-def later(fn, delay=0.05):
-    """Run fn on another thread shortly. Window calls made directly inside a js_api
-    callback can deadlock on macOS, because pywebview still has to send the return
-    value back to the page."""
-    def run():
-        time.sleep(delay)
-        try:
-            fn()
-        except Exception as ex:
-            log("window op error %r" % ex)
-    threading.Thread(target=run, daemon=True).start()
-
-
-class Engine:
+class App:
     def __init__(self):
         self.cfg = load_config()
-        self.db = DB(os.path.join(APP_DIR, "shipments.db"))
-        self.window = None
-        self.busy = False
-        self.last_run = None
-        self.message = None       # {"code": ..., "arg": ...}; translated in the UI
-        self.mail_message = None  # Gmail problems stay visible after a run
-        self.installing = None
-        self._wake = threading.Event()
-        self._lock = threading.Lock()
-        self._track_lock = threading.Lock()
-        self.refreshing = set()
+        self.window = None            # the character
+        self.settings_window = None   # the settings popup, while open
+        self.menubar = None           # menu bar icon (macOS), see menubar.py
+        self.visible = True
         self.closing = False
+        self.skin_job = None          # custom skin being generated: {"step", "total", "label", "error", "id", "done"}
+        self._skin_stop = False
+        self._wake = threading.Event()
+        self._push_at = 0
+        self._push_timer = None
+        self.reports = Reports(on_change=self.push_soon)
+        self.features = make_features(self)
+        if not any(s["id"] == self.cfg.get("skin") for s in list_skins()):
+            skins = list_skins()
+            self.cfg["skin"] = skins[0]["id"] if skins else ""
 
-    # ---------- background loop ----------
+    def feature(self, fid):
+        return next((f for f in self.features if f.id == fid), None)
+
+    # ---------- background ----------
     def loop(self):
-        time.sleep(2)
+        for f in self.features:
+            try:
+                f.start()
+            except Exception:
+                log(traceback.format_exc())
         while not self.closing:
-            self.run_once()
-            interval = max(10, int(self.cfg.get("interval_minutes", 60))) * 60
-            self._wake.wait(interval)
+            now = time.time()
+            for f in self.features:
+                try:
+                    f.tick(now)
+                except Exception:
+                    log(traceback.format_exc())
+            self._wake.wait(15)
             self._wake.clear()
 
-    def trigger(self):
-        self._wake.set()
+    # ---------- windows ----------
+    def show_window(self):
+        self.visible = True
+        later(self.window.show, 0)
 
-    def run_once(self):
-        if not self._lock.acquire(blocking=False):
+    def hide_window(self):
+        self.visible = False
+        later(self.window.hide, 0)
+
+    def toggle_window(self):
+        self.hide_window() if self.visible else self.show_window()
+
+    def page_call(self, js, delay=0.3):
+        """Run JS in the character's page (from a worker thread)."""
+        def go():
+            if self.window and not self.closing:
+                self.window.evaluate_js(js)
+        later(go, delay)
+
+    def open_settings(self, tab="general"):
+        tab = tab.replace("'", "")
+        if self.menubar:
+            from menubar import activate
+            activate()
+        w = self.settings_window
+        if w:
+            later(w.show, 0)
+            later(lambda: w.evaluate_js("openTab('%s')" % tab), 0.1)
             return
-        try:
-            self.busy = True
+        lang = self.cfg.get("lang", "en")
+        w = webview.create_window(
+            "设置 · 快递小组件" if lang == "zh" else "Parcel Widget Settings",
+            os.path.join(UI_DIR, "settings.html") + "#" + tab,
+            js_api=self.api, width=520, height=600, min_size=(440, 420))
+        self.settings_window = w
+
+        def closed():
+            self.settings_window = None
+        w.events.closed += closed
+
+    def quit(self):
+        self.closing = True
+
+        def _close():
+            for w in (self.settings_window, self.window):
+                try:
+                    w and w.destroy()
+                except Exception:
+                    pass
+            time.sleep(2)
+            os._exit(0)  # fallback: force exit (incl. a tracking browser) after 2 s
+        later(_close, 0.2)
+        return True
+
+    # ---------- tell the pages something changed ----------
+    def push_soon(self):
+        """push(), at most a few times a second (progress callbacks fire often)."""
+        now = time.time()
+        if now - self._push_at >= 0.4:
             self.push()
-            self._scan_mail()
-            self._track_all()
-            self.last_run = time.time()
-            self.message = None
-        except Exception as e:
-            self.message = {"code": "error", "arg": str(e)[:120]}
-            log(traceback.format_exc())
-        finally:
-            self.busy = False
-            self._lock.release()
-            self.push()
-
-    def _scan_mail(self):
-        addr = self.cfg.get("gmail_address")
-        pw = get_password(addr) if addr else ""
-        if not addr or not pw:
-            self.mail_message = {"code": "no_gmail"}
-            return
-        from mail_scanner import scan_gmail
-        self.message = {"code": "reading_gmail"}
-        self.push()
-        try:
-            items = scan_gmail(addr, pw, days=int(self.cfg.get("scan_days", 14)), log=log)
-            self.mail_message = None
-        except Exception as e:
-            self.mail_message = {"code": "gmail_error", "arg": str(e)[:120]}
-            log("gmail error: %r" % e)
-            return
-        new = sum(self.db.add(i["number"], i["carrier"], i["title"], "email") for i in items)
-        log("Gmail scan done, %d new" % new)
-
-    def _track_all(self, only=None):
-        # one browser profile can't be opened twice, so tracking runs one batch at a time
-        with self._track_lock:
-            self._track_all_locked(only)
-
-    def _track_all_locked(self, only):
-        from tracker import ParcelsAppTracker
-        nums = list(only) if only else [r["number"] for r in self.db.to_check()]
-        if not nums:
-            return
-        self.message = {"code": "checking", "arg": len(nums)}
-        self.push()
-        browser = self.cfg.get("browser", DEFAULT_BROWSER)
-        t = ParcelsAppTracker(
-            os.path.join(APP_DIR, "browser-profile"),
-            headless=bool(self.cfg.get("headless", True)),
-            browser=browser,
-            log=log,
-        )
-        missing = []
-
-        def on_result(num, res):
-            err = res.get("error")
-            if err:
-                if err.startswith("browser_missing"):
-                    missing.append(err)
-                self.db.set_error(num, err)
-            else:
-                self.db.update_status(num, res["status"], res["location"],
-                                      res["event_time"], res["delivered"])
-            self.push()
-
-        t.track_many(nums, on_result, should_stop=lambda: self.closing)
-        if missing and browser in AUTO_INSTALL:
-            self.install_browser(browser)
-
-    def install_browser(self, browser):
-        """Download a Playwright browser (chromium / firefox / webkit) in the background."""
-        if self.installing:
-            return
-        self.installing = browser
-        self.message = {"code": "installing", "arg": browser}
-        self.push()
-        try:
-            r = subprocess.run([sys.executable, "-m", "playwright", "install", AUTO_INSTALL[browser]],
-                               capture_output=True, text=True, timeout=900)
-            log(r.stdout[-500:] + r.stderr[-500:])
-            ok = r.returncode == 0
-        except Exception as e:
-            log("install error %r" % e)
-            ok = False
-        self.installing = None
-        self.message = {"code": "installed" if ok else "install_failed", "arg": browser}
-        self.push()
-        if ok:
-            self.trigger()
+        elif not self._push_timer:
+            def go():
+                self._push_timer = None
+                self.push()
+            self._push_timer = threading.Timer(0.4, go)
+            self._push_timer.daemon = True
+            self._push_timer.start()
 
     def push(self):
-        # don't talk to the window while it is closing, or both sides wait on each other
-        if self.window and not self.closing:
+        self._push_at = time.time()
+        if self.menubar:
             try:
-                self.window.evaluate_js("window.onBackendUpdate && window.onBackendUpdate()")
-            except Exception:
-                pass
+                self.menubar.set_count(*self.feature("parcels").counts())
+            except Exception as ex:
+                log("menubar error %r" % ex)
+        # don't talk to the windows while closing, or both sides wait on each other
+        if self.closing:
+            return
+        for w in (self.window, self.settings_window):
+            if w:
+                try:
+                    w.evaluate_js("window.onBackendUpdate && window.onBackendUpdate()")
+                except Exception:
+                    pass
 
 
 class Api:
-    """Methods callable from the page as window.pywebview.api.xxx"""
+    """Methods callable from the pages as window.pywebview.api.xxx (both windows share it)."""
 
-    def __init__(self, engine):
-        self.e = engine
+    def __init__(self, app):
+        self.a = app
 
-    # ---------- data ----------
+    # ---------- state ----------
     def get_state(self):
-        e, c = self.e, self.e.cfg
+        a, c = self.a, self.a.cfg
+        p = preset(c)
         return {
-            "items": e.db.active(),
-            "busy": e.busy,
-            "refreshing": sorted(e.refreshing),
-            "last_run": e.last_run,
-            "message": e.message or e.mail_message,
-            "configured": bool(c.get("gmail_address") and get_password(c["gmail_address"])),
+            "lang": c.get("lang", "en"),
             "on_top": bool(c.get("always_on_top")),
             "size_preset": str(c.get("size_preset", "14")),
-            "zoom": preset(c)["zoom"],
-            "max_h": preset(c)["h"],
+            "zoom": p["zoom"], "max_h": p["h"], "base_w": p["w"],
             "presets": [{"key": k, "label": v["label"]} for k, v in SIZE_PRESETS.items()],
-            "lang": c.get("lang", "en"),
-            "base_w": preset(c)["w"],
             "skin": self._skin(),
             "skin_side": c.get("skin_side", "right"),
+            "skin_job": a.skin_job,
+            "features": [f.info() for f in a.features],
+            "f": {f.id: f.state() for f in a.features},
+            "reports": a.reports.visible(),
         }
 
+    def feature(self, fid, method, *args):
+        """Call a feature's api_<method> (see features/)."""
+        f = self.a.feature(fid)
+        fn = getattr(f, "api_" + method, None) if f else None
+        if not fn:
+            return {"error": "unknown"}
+        return fn(*args)
+
+    def ack_report(self, rid):
+        return self.a.reports.ack(rid)
+
+    # ---------- settings ----------
+    def get_settings(self):
+        c = self.a.cfg
+        out = {"general": {"lang": c.get("lang", "en"), "on_top": bool(c.get("always_on_top")),
+                           "size_preset": str(c.get("size_preset", "14")),
+                           "skin": c.get("skin", ""), "skin_side": c.get("skin_side", "right")}}
+        for f in self.a.features:
+            out[f.id] = f.get_settings()
+        return out
+
+    def save_settings(self, section, values):
+        f = self.a.feature(section)
+        if not f:
+            return False
+        f.save_settings(values or {})
+        save_config(self.a.cfg)
+        self.a.push()
+        return True
+
+    def set_lang(self, lang):
+        self.a.cfg["lang"] = "zh" if lang == "zh" else "en"
+        save_config(self.a.cfg)
+        self.a.push()
+        return self.a.cfg["lang"]
+
+    def set_on_top(self, value):
+        c = self.a.cfg
+        c["always_on_top"] = bool(value)
+        save_config(c)
+        later(lambda: setattr(self.a.window, "on_top", c["always_on_top"]))
+        self.a.push()
+        return c["always_on_top"]
+
+    def set_size(self, key):
+        if key not in SIZE_PRESETS:
+            return None
+        self.a.cfg["size_preset"] = key
+        save_config(self.a.cfg)
+        self.a.push()
+        p = SIZE_PRESETS[key]
+        return {"zoom": p["zoom"], "max_h": p["h"], "base_w": p["w"]}
+
+    def open_settings(self, tab="general"):
+        self.a.open_settings(tab)
+        return True
+
+    # ---------- skins ----------
     def _skin(self):
-        sid = self.e.cfg.get("skin") or ""
+        sid = self.a.cfg.get("skin") or ""
         for s in list_skins():
             if s["id"] == sid:
                 return s
@@ -293,179 +240,230 @@ class Api:
 
     def get_skins(self):
         return [{"id": s["id"], "name": s.get("name", s["id"]), "name_zh": s.get("name_zh", ""),
-                 "thumb": s.get("thumb", "")} for s in list_skins()]
+                 "thumb": s.get("thumb", ""), "custom": bool(s.get("custom"))} for s in list_skins()]
 
-    def set_skin(self, skin_id, side=None):
-        c = self.e.cfg
-        c["skin"] = skin_id or ""
+    def set_skin(self, skin_id=None, side=None):
+        c = self.a.cfg
+        if skin_id and any(s["id"] == skin_id for s in list_skins()):
+            c["skin"] = skin_id
         if side in ("left", "right"):
             c["skin_side"] = side
         save_config(c)
+        self.a.push()
         return {"skin": self._skin(), "skin_side": c["skin_side"]}
 
-    def get_archived(self):
-        return self.e.db.archived()
+    def delete_skin(self, skin_id):
+        """Only generated (custom) skins can be deleted."""
+        import shutil
+        for s in list_skins():
+            if s["id"] == skin_id and s.get("custom"):
+                shutil.rmtree(os.path.join(SKINS_DIR, skin_id), ignore_errors=True)
+                if self.a.cfg.get("skin") == skin_id:
+                    self.a.cfg["skin"] = next((x["id"] for x in list_skins()), "")
+                    save_config(self.a.cfg)
+                self.a.push()
+                return True
+        return False
 
-    def confirm(self, number):
-        self.e.db.archive(number)
-        return True
+    # ---------- custom skins (generated with an image API, see skinmaker/) ----------
+    def get_skin_gen(self):
+        from skinmaker import DEFAULT_PROVIDER, PROVIDERS, get_key
+        g = self.a.cfg.get("skin_gen") or {}
+        return {
+            "providers": [dict(p.info(), has_key=bool(get_key(p.id))) for p in PROVIDERS.values()],
+            "provider": g.get("provider") or DEFAULT_PROVIDER,
+            "models": g.get("models") or {},
+            "base_urls": g.get("base_urls") or {},
+            "job": self.a.skin_job,
+        }
 
-    def unarchive(self, number):
-        self.e.db.unarchive(number)
-        return True
+    def pick_ref_image(self):
+        """Native file picker; returns the path and a small preview."""
+        import base64
+        import io
+        win = self.a.settings_window or self.a.window
+        res = win.create_file_dialog(webview.FileDialog.OPEN, file_types=("Images (*.png;*.jpg;*.jpeg;*.webp)",))
+        if not res:
+            return None
+        path = res[0] if isinstance(res, (list, tuple)) else res
+        try:
+            from PIL import Image
+            im = Image.open(path)
+            im.thumbnail((96, 96))
+            buf = io.BytesIO()
+            im.convert("RGBA").save(buf, "PNG")
+            return {"path": path, "preview": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
+                    "name": os.path.basename(path)}
+        except Exception as ex:
+            return {"error": str(ex)[:120]}
 
-    def add_manual(self, number, title=""):
-        number = "".join(number.split()).upper()
-        if len(number) < 8:
-            return {"ok": False, "msg": "too_short"}
-        added = self.e.db.add(number, guess_carrier(number), title, "manual")
-        if not added:
-            self.e.db.unarchive(number)
-        threading.Thread(target=self._track_one, args=(number,), daemon=True).start()
+    def start_skin_gen(self, opts):
+        a = self.a
+        if a.skin_job and not a.skin_job.get("done"):
+            return {"ok": False, "msg": "busy"}
+        from skinmaker import get_key, get_provider, set_key
+        pid = opts.get("provider")
+        try:
+            p = get_provider(pid)
+        except Exception:
+            return {"ok": False, "msg": "provider"}
+        key = (opts.get("key") or "").strip()
+        if key:
+            set_key(pid, key)
+        key = key or get_key(pid)
+        if not key:
+            return {"ok": False, "msg": "no_key"}
+        name = (opts.get("name") or "").strip()
+        desc = (opts.get("desc") or "").strip()
+        ref_path = opts.get("ref_path") or ""
+        if not desc and not ref_path:
+            return {"ok": False, "msg": "no_desc"}
+        g = a.cfg.setdefault("skin_gen", {})
+        g["provider"] = pid
+        g.setdefault("models", {})[pid] = (opts.get("model") or "").strip()
+        g.setdefault("base_urls", {})[pid] = (opts.get("base_url") or "").strip()
+        save_config(a.cfg)
+        ref = None
+        if ref_path:
+            with open(ref_path, "rb") as f:
+                ref = f.read()
+        a._skin_stop = False
+        a.skin_job = {"step": 0, "total": 11, "label": "base", "error": None, "id": None, "done": False,
+                      "provider": p.name, "failed": [], "name": name or "My Skin"}
+        threading.Thread(target=self._run_skin_gen, daemon=True,
+                         args=(name or "My Skin", desc, pid, key, ref, g["models"][pid], g["base_urls"][pid])).start()
+        a.push()
         return {"ok": True}
 
-    def _track_one(self, number):
-        self.e.refreshing.add(number)
-        self.e.push()
+    def _run_skin_gen(self, name, desc, pid, key, ref, model, base_url):
+        from skinmaker import Cancelled, make_skin
+        a, job = self.a, self.a.skin_job
+        # she reports it like any other job (put into words by the page: FEATURES.skin)
+        r = a.reports.add("skin", "make", {"job": dict(job)})
+
+        def progress(done, total, label):
+            job.update(step=done, total=total, label=label)
+            a.reports.set(r, "job", dict(job))
         try:
-            self.e._track_all(only={number})
+            sid, failed = make_skin(SKINS_DIR, name, desc, pid, key, ref, model or None, base_url or None,
+                                    log=lambda m: log("skin: %s" % m), progress=progress,
+                                    should_stop=lambda: a._skin_stop or a.closing)
+            job.update(id=sid, failed=sorted(failed))
+            a.cfg["skin"] = sid
+            save_config(a.cfg)
+        except Cancelled:
+            job["error"] = "cancelled"
         except Exception as ex:
-            log("track one error %r" % ex)
-        finally:
-            self.e.refreshing.discard(number)
-        self.e.push()
+            log("skin generation failed: %s" % traceback.format_exc())
+            job["error"] = str(ex)[:300]
+        job["done"] = True
+        a.reports.set(r, "job", dict(job))
+        a.reports.finish(r)
+        a.push()
 
-    def refresh_now(self):
-        self.e.trigger()
+    def cancel_skin_gen(self):
+        self.a._skin_stop = True
         return True
 
-    def refresh_one(self, number):
-        if number in self.e.refreshing:
-            return False
-        threading.Thread(target=self._track_one, args=(number,), daemon=True).start()
+    def clear_skin_job(self):
+        if self.a.skin_job and self.a.skin_job.get("done"):
+            self.a.skin_job = None
         return True
 
-    # ---------- settings ----------
-    def get_settings(self):
-        c = dict(self.e.cfg)
-        c["has_password"] = bool(c.get("gmail_address") and get_password(c["gmail_address"]))
-        c["browsers"] = list(BROWSERS)
-        return c
-
-    def save_settings(self, s):
-        c = self.e.cfg
-        c["gmail_address"] = (s.get("gmail_address") or "").strip()
-        c["interval_minutes"] = int(s.get("interval_minutes") or 60)
-        c["scan_days"] = int(s.get("scan_days") or 14)
-        c["headless"] = bool(s.get("headless", True))
-        if s.get("browser") in BROWSERS:
-            c["browser"] = s["browser"]
-        pw = (s.get("app_password") or "").replace(" ", "")
-        if pw and c["gmail_address"]:
-            set_password(c["gmail_address"], pw)
-        save_config(c)
-        self.e.trigger()
-        return True
-
-    def set_lang(self, lang):
-        self.e.cfg["lang"] = "zh" if lang == "zh" else "en"
-        save_config(self.e.cfg)
-        return self.e.cfg["lang"]
-
-    def set_on_top(self, value):
-        c = self.e.cfg
-        c["always_on_top"] = bool(value)
-        save_config(c)
-        later(lambda: setattr(self.e.window, "on_top", c["always_on_top"]))
-        return c["always_on_top"]
-
-    def set_size(self, key):
-        if key not in SIZE_PRESETS:
-            return None
-        self.e.cfg["size_preset"] = key
-        save_config(self.e.cfg)
-        p = SIZE_PRESETS[key]
-        return {"zoom": p["zoom"], "max_h": p["h"], "base_w": p["w"]}
-
-    # ---------- window ----------
+    # ---------- the character's window ----------
     def fit(self, css_width, css_height):
-        """Resize the window to the page's layout size (CSS px x zoom). The page already
-        caps the panel height by the preset; the character can add a bit on top."""
-        p = preset(self.e.cfg)
-        z = p["zoom"]
-        h = int(min(p["h"] * 1.6, max(30, round(float(css_height) * z))))
-        w = int(min(p["w"] * 2, max(150, round(float(css_width) * z))))
+        """Resize the window to the page's layout (CSS px x zoom), keeping her feet where
+        they are: the bottom corner on her side stays put while the balloon opens."""
+        a = self.a
+        z = preset(a.cfg)["zoom"]
+        w = int(max(60, round(float(css_width) * z)))
+        h = int(max(60, round(float(css_height) * z)))
 
         def do():
-            win = self.e.window
+            win = a.window
+            if os.environ.get("PARCELWIDGET_DEBUG"):
+                log("fit %dx%d (window %sx%s)" % (w, h, win.width, win.height))
             if abs((win.height or 0) - h) <= 1 and abs((win.width or 0) - w) <= 1:
                 return
-            try:
-                from webview.window import FixPoint
-                win.resize(w, h, fix_point=FixPoint.NORTH | FixPoint.WEST)  # keep top-left in place
-            except Exception:
-                x, y = win.x, win.y
-                win.resize(w, h)
-                win.move(x, y)
+            from webview.window import FixPoint
+            side = FixPoint.EAST if a.cfg.get("skin_side", "right") == "right" else FixPoint.WEST
+            win.resize(w, h, fix_point=FixPoint.SOUTH | side)
         later(do, 0)
         return h
 
     def get_pos(self):
-        return [self.e.window.x, self.e.window.y]
+        return [self.a.window.x, self.a.window.y]
 
     def move(self, x, y):
         # called repeatedly while dragging; window.move is thread-safe
         try:
-            self.e.window.move(int(x), int(y))
+            self.a.window.move(int(x), int(y))
         except Exception as ex:
             log("move error %r" % ex)
         return True
+
+    def context_menu(self):
+        """Right-click on her: the same menu as the menu bar icon."""
+        if self.a.menubar:
+            self.a.menubar.popup()
+            return True
+        return False
 
     def open_url(self, url):
         import webbrowser
         webbrowser.open(url)
 
-    def minimize(self):
-        later(self.e.window.minimize)
+    def hide(self):
+        if self.a.menubar:
+            self.a.hide_window()
+        else:
+            later(self.a.window.minimize)
 
     def quit(self):
-        self.e.closing = True
-
-        def _close():
-            try:
-                self.e.window.destroy()
-            except Exception:
-                pass
-            time.sleep(2)
-            os._exit(0)  # fallback: force exit (incl. a tracking browser) after 2 s
-        later(_close, 0.2)
-        return True
+        return self.a.quit()
 
 
 def main():
-    engine = Engine()
-    api = Api(engine)
-    p = preset(engine.cfg)
+    app = App()
+    api = Api(app)
+    app.api = api
+    p = preset(app.cfg)
     win = webview.create_window(
         "Parcel Widget",
-        os.path.join(HERE, "ui", "index.html"),
+        os.path.join(UI_DIR, "index.html"),
         js_api=api,
-        width=p["w"],
-        height=60,               # the page resizes the window to fit its content
-        min_size=(200, 30),
+        width=int(p["w"] * 0.6),
+        height=int(p["w"] * 0.7),   # the page resizes the window to fit her and her balloon
+        min_size=(60, 60),
         frameless=True,
         easy_drag=False,
-        on_top=bool(engine.cfg.get("always_on_top")),
-        transparent=True,        # lets the character stand outside the panel
+        on_top=bool(app.cfg.get("always_on_top")),
+        transparent=True,
     )
-    engine.window = win
-    threading.Thread(target=engine.loop, daemon=True).start()
+    app.window = win
+    threading.Thread(target=app.loop, daemon=True).start()
 
     def on_closing():
-        engine.closing = True
+        app.closing = True
 
     win.events.closing += on_closing
-    webview.start()
+
+    # live in the menu bar instead of the Dock (macOS)
+    started = None
+    if IS_MAC:
+        try:
+            import menubar
+            from PyObjCTools import AppHelper
+            menubar.hide_dock_icon()
+            app.menubar = menubar.MenuBar(app)
+
+            def started():
+                AppHelper.callAfter(app.menubar.install)
+                app.push()
+        except Exception as ex:
+            app.menubar = None
+            log("menu bar icon unavailable: %r" % ex)
+    webview.start(started)
     os._exit(0)  # exit right away once the window is gone; all data is already saved
 
 

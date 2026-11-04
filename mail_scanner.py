@@ -65,8 +65,10 @@ def _all_mail_box(m):
     return '"[Gmail]/All Mail"'
 
 
-def scan_gmail(address, app_password, days=14, max_messages=200, log=print):
-    """返回 [{'number', 'carrier', 'title'}]"""
+def scan_gmail(address, app_password, days=14, max_messages=200, log=print, progress=None):
+    """返回 [{'number', 'carrier', 'title'}]
+
+    progress(done, total, results) is called after each email (for the report in her balloon)."""
     results = []
     seen = set()
     m = imaplib.IMAP4_SSL(GMAIL_HOST)
@@ -81,7 +83,11 @@ def scan_gmail(address, app_password, days=14, max_messages=200, log=print):
             return results
         uids = data[0].split()[-max_messages:]
         log("Gmail: %d 封候选邮件" % len(uids))
-        for uid in reversed(uids):  # 新邮件优先
+        if progress:
+            progress(0, len(uids), results)
+        for k, uid in enumerate(reversed(uids)):  # 新邮件优先
+            if progress and k:
+                progress(k, len(uids), results)
             typ, msgdata = m.uid("FETCH", uid, "(BODY.PEEK[])")
             if typ != "OK" or not msgdata or not msgdata[0]:
                 continue
@@ -94,6 +100,8 @@ def scan_gmail(address, app_password, days=14, max_messages=200, log=print):
                     continue
                 seen.add(number)
                 results.append({"number": number, "carrier": carrier, "title": subject[:120]})
+        if progress:
+            progress(len(uids), len(uids), results)
     finally:
         try:
             m.logout()

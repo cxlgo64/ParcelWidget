@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e3e3e8;--accent:#0a84ff;--err:#c4372c;--chip:#ececf1;--green:#2f9e5b}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#1c1c1e;--card:#2c2c2e;--text:#f2f2f7;--muted:#9a9aa0;--line:#3a3a3c;--err:#ff6b5e;--chip:#3a3a3c}
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font:13px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Segoe UI","Microsoft YaHei",sans-serif}
+body{display:flex;flex-direction:column}
+nav{display:flex;gap:4px;padding:10px 12px 0;border-bottom:1px solid var(--line);flex:none}
+nav button{border:0;background:none;color:var(--muted);padding:7px 12px;border-radius:8px 8px 0 0;font-size:13px;cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+nav button.on{color:var(--text);font-weight:600;border-bottom-color:var(--accent)}
+main{flex:1;overflow-y:auto;padding:4px 18px 24px}
+.tab{display:none}.tab.on{display:block}
+.section{margin:16px 0 6px;font-size:12.5px;font-weight:700}
+label{display:block;margin:9px 0 3px;color:var(--muted);font-size:12px}
+input[type=text],input[type=password],input[type=number],input[type=time],select,textarea{width:100%;border:1px solid var(--line);
+  background:var(--card);color:var(--text);border-radius:7px;padding:6px 8px;font:inherit;font-size:13px}
+textarea{min-height:64px;resize:vertical}
+.row{display:flex;gap:8px;align-items:center}
+.row > *{flex:none}
+.row .grow{flex:1}
+.hint{color:var(--muted);font-size:11.5px;margin-top:4px}
+.chk{display:flex;align-items:center;gap:7px;margin-top:10px}
+.seg{display:inline-flex;background:var(--chip);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--muted);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
+.seg button.on{background:var(--card);color:var(--text);font-weight:600;box-shadow:0 1px 2px #0003}
+.btn{border:0;background:var(--accent);color:#fff;border-radius:7px;padding:6px 14px;font-size:12.5px;cursor:pointer}
+.btn.ghost{background:var(--chip);color:var(--text)}
+.btn:disabled{opacity:.5;cursor:default}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:2px 10px}
+.pkg{display:flex;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}
+.pkg:first-child{border-top:0}
+.pkg .tag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--chip);flex:none}
+.tag.UPS{background:#5b3a1f;color:#ffd38a}.tag.FedEx{background:#4d148c;color:#fff}
+.tag.USPS{background:#1c3f94;color:#fff}.tag.Amazon{background:#232f3e;color:#ff9900}
+.pkg .mid{flex:1;min-width:0}
+.pkg .num{font:11.5px ui-monospace,Menlo,Consolas,monospace}
+.pkg .st{color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pkg.done .st{color:var(--green)}
+.pkg .e{color:var(--err);font-size:11px}
+.pkg .ic{border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 5px;border-radius:6px}
+.pkg .ic:hover{background:var(--chip);color:var(--text)}
+.empty{color:var(--muted);padding:10px 0;font-size:12px}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px}
+.skins{display:flex;flex-wrap:wrap;gap:8px}
+.skinopt{position:relative;width:76px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:10px;
+  border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:11.5px;color:var(--muted);text-align:center}
+.skinopt.on{border-color:var(--accent);color:var(--text);font-weight:600}
+.skinopt .th{width:40px;height:44px;background:center/contain no-repeat;display:grid;place-items:center;font-size:20px;color:var(--accent)}
+.skinopt .del{position:absolute;top:2px;right:4px;font-size:10px;display:none;padding:0 3px;border-radius:4px}
+.skinopt:hover .del{display:block}
+.skinopt .del:hover{background:var(--chip);color:var(--err)}
+.refbox{display:flex;align-items:center;gap:8px}
+.refbox .pv{width:48px;height:48px;border-radius:8px;border:1px dashed var(--line);background:center/contain no-repeat var(--card);
+  display:grid;place-items:center;color:var(--muted);font-size:18px;flex:none}
+.refbox .nm{flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{height:6px;border-radius:3px;background:var(--chip);overflow:hidden;margin-top:10px}
+.prog>div{height:100%;background:var(--accent);width:0;transition:width .3s}
+.jobmsg{font-size:12px;margin-top:5px;color:var(--muted)}
+.jobmsg.err{color:var(--err)}
+.toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#000c;color:#fff;padding:5px 11px;border-radius:7px;
+  font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<main>
+<!-- General: the widget itself -->
+<section class="tab" id="tab-general">
+  <div class="section" data-t="language"></div>
+  <div class="seg" id="langSeg"></div>
+  <div class="section" data-t="size"></div>
+  <div class="seg" id="sizeSeg"></div>
+  <div class="hint" data-t="sizeHint"></div>
+  <div class="chk"><input type="checkbox" id="onTop" onchange="setOnTop(this.checked)"><span data-t="onTop"></span></div>
+  <div class="section" data-t="skin"></div>
+  <div class="skins" id="skins"></div>
+  <div class="row" style="margin-top:10px"><span class="hint" style="margin:0" data-t="side"></span><div class="seg" id="sideSeg"></div></div>
+</section>
+
+<!-- Parcels -->
+<section class="tab" id="tab-parcels">
+  <div class="section" data-t="packages"></div>
+  <div class="card" id="pkgs"></div>
+  <details id="archDetails" ontoggle="fillArchive()"><summary><span data-t="archived"></span> <span id="archCount"></span></summary>
+    <div class="card" style="margin-top:6px" id="arch"></div></details>
+
+  <div class="section" data-t="schedule"></div>
+  <div class="row"><span data-t="from"></span><input type="time" id="p_start" style="width:110px">
+    <span data-t="to"></span><input type="time" id="p_end" style="width:110px">
+    <span data-t="every"></span><select id="p_every" style="width:80px"></select><span data-t="minutes"></span></div>
+  <div class="hint" data-t="scheduleHint"></div>
+
+  <div class="section" data-t="gmail"></div>
+  <label data-t="gmailAddr"></label><input type="text" id="p_addr" placeholder="you@gmail.com">
+  <label data-t="appPw"></label><input type="password" id="p_pw">
+  <div class="hint" id="pwHint"></div>
+  <label data-t="scanDays"></label><input type="number" id="p_days" min="1" style="width:110px">
+
+  <div class="section" data-t="tracking"></div>
+  <label data-t="browser"></label><select id="p_browser"></select>
+  <div class="hint" data-t="browserHint"></div>
+  <div class="chk"><input type="checkbox" id="p_headless"><span data-t="headless"></span></div>
+  <div style="margin-top:16px"><button class="btn" onclick="saveParcels()" data-t="save"></button></div>
+</section>
+
+<!-- System monitor -->
+<section class="tab" id="tab-sysmon">
+  <div class="section" data-t="period"></div>
+  <div class="seg" id="periodSeg"></div>
+  <div class="section" data-t="colors"></div>
+  <div class="seg" id="colorSeg"></div>
+  <div class="hint" style="margin-top:12px" data-t="sysHint"></div>
+</section>
+
+<!-- Custom skin: generated with an image AI (skinmaker/) -->
+<section class="tab" id="tab-skin">
+  <div class="hint" data-t="csIntro" style="margin-top:12px"></div>
+  <label data-t="csName"></label><input type="text" id="cs_name">
+  <label data-t="csDesc"></label><textarea id="cs_desc"></textarea>
+  <label data-t="csRef"></label>
+  <div class="refbox"><div class="pv" id="cs_pv">＋</div><div class="nm" id="cs_refname"></div>
+    <button class="btn ghost" onclick="pickRef()" data-t="csPick"></button>
+    <button class="btn ghost" id="cs_clear" onclick="clearRef()" style="display:none">✕</button></div>
+  <div class="hint" id="cs_refhint"></div>
+  <div class="section" data-t="csProvider"></div>
+  <select id="cs_provider" onchange="onProvider()"></select>
+  <div class="hint" id="cs_pnote"></div>
+  <label id="cs_keylabel"></label><input type="password" id="cs_key">
+  <div class="hint" id="cs_keyhint"></div>
+  <details><summary data-t="csAdvanced"></summary>
+    <label data-t="csModel"></label><input type="text" id="cs_model">
+    <label data-t="csEndpoint"></label><input type="text" id="cs_base"></details>
+  <div id="cs_job" style="display:none"><div class="prog"><div id="cs_bar"></div></div><div class="jobmsg" id="cs_jobmsg"></div></div>
+  <div class="row" style="margin-top:14px"><button class="btn" id="cs_go" onclick="startSkinGen()" data-t="csGenerate"></button>
+    <button class="btn ghost" id="cs_cancel" onclick="cancelSkinGen()" data-t="cancel"></button></div>
+  <div class="hint" data-t="csCost"></div>
+</section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="i18n.js"></script>
+<script>
+/* The settings window. Tabs: General (the widget), one per feature, and Custom skin.
+   Opened from the menus: settings.html#general | #parcels | #parcels:add | #sysmon | #skin */
+const TABS = ['general', 'parcels', 'sysmon', 'skin'];
+let tab = 'general', state = {f: {}}, settings = null;
+
+function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1500); }
+function seg(id, opts, cur, fn){
+  $(id).innerHTML = opts.map(o => `<button class="${String(o.key) === String(cur) ? 'on' : ''}" onclick="${fn}('${o.key}')">${esc(o.label)}</button>`).join('');
+}
+function openTab(t){
+  const [name, sub] = String(t || 'general').split(':');
+  tab = TABS.includes(name) ? name : 'general';
+  document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === 'tab-' + tab));
+  renderNav();
+  if(tab === 'skin') fillCustomSkin();
+}
+function renderNav(){
+  $('nav').innerHTML = TABS.map(k => `<button class="${k === tab ? 'on' : ''}" onclick="openTab('${k}')">${esc(T().tabs[k])}</button>`).join('');
+}
+window.onhashchange = () => openTab(location.hash.slice(1));
+
+async function load(){
+  state = await api().get_state();
+  if(state.lang !== lang){ lang = state.lang; applyStaticText(); renderNav(); settings = null; }
+  document.title = T().title;
+  if(!settings){ settings = await api().get_settings(); fillForms(); }
+  fillGeneral(); fillPackages(); fillSysmon();
+  if(tab === 'skin') renderSkinJob(state.skin_job);
+}
+window.onBackendUpdate = () => load();
+
+/* ---------------- General ---------------- */
+async function fillGeneral(){
+  const L = T();
+  seg('langSeg', [{key:'en', label:'English'}, {key:'zh', label:'中文'}], lang, 'pickLang');
+  seg('sizeSeg', state.presets.map(p => ({key: p.key, label: p.key === 'ext' ? (lang === 'zh' ? '外接屏' : 'External') : p.label})), state.size_preset, 'pickSize');
+  $('onTop').checked = !!state.on_top;
+  seg('sideSeg', [{key:'left', label:L.sideLeft}, {key:'right', label:L.sideRight}], state.skin_side, 'pickSide');
+  const skins = await api().get_skins(), cur = state.skin ? state.skin.id : '';
+  $('skins').innerHTML = skins.map(s => {
+    const label = esc(lang === 'zh' && s.name_zh ? s.name_zh : s.name);
+    const th = s.thumb ? `style="background-image:url('skins/${encodeURIComponent(s.id)}/${encodeURIComponent(s.thumb)}')"` : '';
+    const del = s.custom ? `<span class="del" title="${esc(L.deleteSkin)}" onclick="event.stopPropagation();deleteSkin('${esc(s.id)}','${label}')">✕</span>` : '';
+    return `<div class="skinopt ${s.id === cur ? 'on' : ''}" onclick="pickSkin('${esc(s.id)}')">${del}<div class="th" ${th}></div>${label}</div>`;
+  }).join('') + `<div class="skinopt" onclick="openTab('skin')"><div class="th">＋</div>${esc(L.addSkin)}</div>`;
+}
+async function pickLang(k){ await api().set_lang(k); load(); }
+async function pickSize(k){ await api().set_size(k); load(); }
+async function setOnTop(v){ await api().set_on_top(v); }
+async function pickSkin(id){ await api().set_skin(id, null); load(); }
+async function pickSide(s){ await api().set_skin(null, s); load(); }
+async function deleteSkin(id, name){ if(confirm(T().deleteConfirm(name))){ await api().delete_skin(id); load(); } }
+
+/* ---------------- Parcels ---------------- */
+function fillForms(){
+  const p = settings.parcels, L = T();
+  $('p_start').value = p.start; $('p_end').value = p.end;
+  $('p_every').innerHTML = [30, 45, 60, 90, 120, 180, 240].map(m => `<option value="${m}" ${+p.every_min === m ? 'selected' : ''}>${m}</option>`).join('');
+  $('p_addr').value = p.gmail_address || ''; $('p_pw').value = '';
+  $('p_pw').placeholder = p.has_password ? L.pwKeep : '';
+  $('pwHint').textContent = (p.has_password ? L.pwSaved : '') + L.pwHint;
+  $('p_days').value = p.scan_days;
+  $('p_browser').innerHTML = p.browsers.map(b => `<option value="${b}" ${b === p.browser ? 'selected' : ''}>${esc(browserName(b))}</option>`).join('');
+  $('p_headless').checked = !!p.headless;
+}
+function fillPackages(){
+  const L = T(), s = state.f.parcels || {}, items = s.items || [];
+  $('pkgs').innerHTML = items.length ? items.map(it => {
+    const n = esc(it.number), d = !!it.delivered, busy = (s.refreshing || []).includes(it.number);
+    const st = busy ? L.updating : it.status ? (d ? '✓ ' : '') + it.status : L.waiting;
+    return `<div class="pkg ${d ? 'done' : ''}"><span class="tag ${esc(it.carrier)}">${esc(it.carrier || '?')}</span>
+      <div class="mid"><div class="num">${n}</div><div class="st">${esc(st)}${it.location ? ' · ' + esc(it.location) : ''}</div>
+      ${it.error ? `<div class="e">${esc(errText(it.error))}</div>` : ''}</div>
+      <button class="ic" title="${esc(L.p.refresh)}" onclick="pcall('refresh_one','${n}')"><span class="${busy ? 'spin' : ''}">⟳</span></button>
+      <button class="ic" title="${esc(L.p.open)}" onclick="api().open_url('${trackUrl(it.number)}')">↗</button>
+      <button class="ic" title="${esc(d ? L.p.got : L.p.archive)}" onclick="pcall('confirm','${n}')">${d ? '✓' : '🗄'}</button></div>`;
+  }).join('') : `<div class="empty">${esc(L.noPackages)}</div>`;
+  if($('archDetails').open) fillArchive();
+}
+async function fillArchive(){
+  const rows = await api().feature('parcels', 'archived'), L = T();
+  $('archCount').textContent = rows.length ? `(${rows.length})` : '';
+  $('arch').innerHTML = rows.length ? rows.map(it => `<div class="pkg"><span class="tag ${esc(it.carrier)}">${esc(it.carrier)}</span>
+    <div class="mid"><div class="num">${esc(it.number)}</div><div class="st">${esc(it.status || '')}</div></div>
+    <button class="ic" title="${esc(L.restore)}" onclick="pcall('unarchive','${esc(it.number)}')">↩</button>
+    <button class="ic" title="${esc(L.del)}" onclick="pcall('delete','${esc(it.number)}')">🗑</button></div>`).join('')
+    : `<div class="empty">${esc(L.noArchived)}</div>`;
+}
+async function pcall(m, ...a){ const r = await api().feature('parcels', m, ...a); await load(); return r; }
+async function saveParcels(){
+  await api().save_settings('parcels', {
+    start: $('p_start').value, end: $('p_end').value, every_min: $('p_every').value,
+    gmail_address: $('p_addr').value, app_password: $('p_pw').value, scan_days: $('p_days').value,
+    browser: $('p_browser').value, headless: $('p_headless').checked,
+  });
+  settings = null; await load(); toast(T().saved);
+}
+
+/* ---------------- System monitor ---------------- */
+function fillSysmon(){
+  const L = T(), s = settings && settings.sysmon; if(!s) return;
+  seg('periodSeg', s.periods.map(p => ({key: p, label: p < 60 ? p + (lang === 'zh' ? ' 秒' : ' s') : (p / 60) + (lang === 'zh' ? ' 分钟' : ' min')})), s.period, 'pickPeriod');
+  seg('colorSeg', [{key:'auto', label:L.colorsAuto}, {key:'green_up', label:L.greenUp}, {key:'red_up', label:L.redUp}], s.colors, 'pickColors');
+}
+async function saveSys(ch){ Object.assign(settings.sysmon, ch); await api().save_settings('sysmon', settings.sysmon); fillSysmon(); }
+const pickPeriod = p => saveSys({period: +p});
+const pickColors = c => saveSys({colors: c});
+
+/* ---------------- Custom skin ---------------- */
+let skinGen = null, refImage = null;
+const provName = p => lang === 'zh' && p.name_zh ? p.name_zh : p.name;
+async function fillCustomSkin(){
+  skinGen = await api().get_skin_gen();
+  $('cs_desc').placeholder = T().csDescPh;
+  $('cs_provider').innerHTML = skinGen.providers.map(p =>
+    `<option value="${p.id}" ${p.id === skinGen.provider ? 'selected' : ''}>${esc(provName(p))}${p.has_key ? '  ✓' : ''}</option>`).join('');
+  onProvider(); renderSkinJob(skinGen.job);
+}
+function curProvider(){ return skinGen.providers.find(p => p.id === $('cs_provider').value) || skinGen.providers[0]; }
+function onProvider(){
+  const L = T(), p = curProvider();
+  $('cs_pnote').textContent = (lang === 'zh' ? p.note_zh : p.note) || '';
+  $('cs_keylabel').textContent = p.key_label;
+  $('cs_key').value = ''; $('cs_key').placeholder = p.has_key ? '••••••••' : '';
+  $('cs_keyhint').innerHTML = (p.has_key ? esc(L.csKeySaved) : '') +
+    (p.key_url ? ` <a href="#" onclick="api().open_url('${esc(p.key_url)}');return false">${esc(L.csGetKey)}</a>` : '');
+  $('cs_model').value = skinGen.models[p.id] || ''; $('cs_model').placeholder = p.edit_model ? `${p.model} / ${p.edit_model}` : p.model;
+  $('cs_base').value = skinGen.base_urls[p.id] || ''; $('cs_base').placeholder = p.base_url;
+  $('cs_refhint').textContent = refImage && !p.supports_ref ? L.csRefNo : '';
+}
+async function pickRef(){
+  const r = await api().pick_ref_image();
+  if(!r) return;
+  if(r.error){ toast(r.error); return; }
+  refImage = r;
+  $('cs_pv').style.backgroundImage = `url('${r.preview}')`; $('cs_pv').textContent = '';
+  $('cs_refname').textContent = r.name; $('cs_clear').style.display = '';
+  if(!$('cs_name').value) $('cs_name').value = r.name.replace(/\.[^.]+$/, '');
+  onProvider();
+}
+function clearRef(){
+  refImage = null; $('cs_pv').style.backgroundImage = ''; $('cs_pv').textContent = '＋';
+  $('cs_refname').textContent = ''; $('cs_clear').style.display = 'none'; onProvider();
+}
+async function startSkinGen(){
+  const L = T(), p = curProvider();
+  const r = await api().start_skin_gen({
+    name: $('cs_name').value, desc: $('cs_desc').value, ref_path: refImage ? refImage.path : '',
+    provider: p.id, key: $('cs_key').value, model: $('cs_model').value, base_url: $('cs_base').value,
+  });
+  if(!r.ok){ toast({busy: L.csBusy, no_key: L.csNoKey, no_desc: L.csNoDesc}[r.msg] || r.msg); return; }
+  $('cs_key').value = ''; load();
+}
+async function cancelSkinGen(){
+  if(state.skin_job && !state.skin_job.done) await api().cancel_skin_gen();
+  else { await api().clear_skin_job(); openTab('general'); }
+}
+function skinJobText(j){
+  const L = T();
+  if(j.error) return j.error === 'cancelled' ? L.csCancelled : L.csErr(j.error);
+  if(j.done) return j.failed && j.failed.length ? L.csPartial(j.failed.map(f => L.csLabels[f] || f).join(', ')) : L.csDone;
+  return L.csStep(Math.min(j.step + 1, j.total), j.total, L.csLabels[j.label] || j.label);
+}
+function renderSkinJob(j){
+  const running = j && !j.done;
+  $('cs_job').style.display = j ? '' : 'none';
+  if(j){
+    $('cs_bar').style.width = Math.round(100 * (j.done && !j.error ? 1 : j.step / j.total)) + '%';
+    $('cs_jobmsg').textContent = skinJobText(j);
+    $('cs_jobmsg').classList.toggle('err', !!j.error);
+  }
+  $('cs_go').disabled = !!running;
+  $('cs_cancel').textContent = running ? T().cancel : T().close;
+}
+
+window.addEventListener('pywebviewready', async () => { applyStaticText(); await load(); openTab(location.hash.slice(1)); });
+</script>
+</body>
+</html>

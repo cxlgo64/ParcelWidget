@@ -12,3 +12,12 @@ browser-profile/
 
 # macOS
 .DS_Store
+
+# raw image generations kept for re-assembling custom skins
+ui/skins/*/_work/
+
+# packaged app (packaging/build_mac.sh)
+build/
+dist/
+packaging/icon.png
+packaging/icon.icns

@@ -88,8 +88,8 @@ class ParcelsAppTracker:
         ctx.add_init_script("Object.defineProperty(navigator,'webdriver',{get:()=>undefined})")
         return ctx
 
-    def track_many(self, numbers, on_result, should_stop=lambda: False):
-        """Calls on_result(number, result_dict) after each number."""
+    def track_many(self, numbers, on_result, should_stop=lambda: False, on_start=None):
+        """Calls on_start(index, number) before and on_result(number, result_dict) after each number."""
         if not numbers:
             return
         from playwright.sync_api import sync_playwright
@@ -106,6 +106,8 @@ class ParcelsAppTracker:
                 for i, num in enumerate(numbers):
                     if should_stop():
                         break
+                    if on_start:
+                        on_start(i, num)
                     try:
                         res = self._track_one(page, num)
                     except Exception as e:  # one failure shouldn't stop the rest
