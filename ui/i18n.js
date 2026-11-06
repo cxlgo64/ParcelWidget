@@ -13,8 +13,9 @@ const I18N = {
     waiting:'Waiting for the first check…', updating:'Updating…', manual:'Added by hand',
     // ---- her balloon ----
     report:{
-      parcels:{startup:'📦 Parcel check', manual:'📦 Parcel check', scheduled:'📦 Parcel update', install:'📦 Parcels'},
+      parcels:{startup:'📦 Parcel check', manual:'📦 Parcel check', scheduled:'📦 Parcel update', wake:'📦 Parcel update', retry:'📦 Parcel update', install:'📦 Parcels'},
       skin:{make:'🎨 New skin'},
+      usb:{startup:'🔌 USB devices', manual:'🔌 USB devices', printer:'🖨 Printer'},
     },
     p:{
       mailOff:'📭 Gmail isn\'t connected, so I only check numbers you add.',
@@ -23,6 +24,9 @@ const I18N = {
       mailNone:t=> t ? `📬 Read ${t} shipping email${t>1?'s':''}, no tracking numbers.` : '📬 No shipping emails lately.',
       mailDone:(t,k,nw)=>`📬 Read ${t} email${t>1?'s':''}: ${k} number${k>1?'s':''}` + (nw ? `, <b>${nw} new</b>` : ', nothing new'),
       mailErr:e=>`📭 Couldn't read Gmail: ${e}`,
+      mailNoNet:'📡 No internet connection, so I couldn\'t reach Gmail.',
+      mailAuth:'🔑 Gmail didn\'t accept the app password.',
+      retryLater:'I\'ll try again later.', retry:'⟳ Try again',
       trackRun:(i,t,c,n)=>`🔎 Asking parcelsapp ${i}/${t}: ${c} <code>${n}</code>`,
       trackDone:t=>`🔎 Checked ${t} on parcelsapp`, trackNone:'🔎 Nothing to look up',
       sum:s=>{ const p=[]; if(s.delivered.length) p.push(`<b>${s.delivered.length} delivered</b> 🎉`);
@@ -44,6 +48,30 @@ const I18N = {
       partial:(nm,r)=>`🎨 “${nm}” is ready, but these poses failed: ${r}.`, err:(nm,e)=>`🎨 Couldn't make “${nm}”: ${e}`,
       cancelled:nm=>`🎨 Stopped making “${nm}”.`,
     },
+    u:{title:'🔌 USB', scanning:'🔌 Looking at what\'s plugged in…', online:n=>`🔌 ${n} device${n==1?'':'s'} · checking drivers online…`,
+      found:(n,a,t)=>`🔌 ${n} USB device${n==1?'':'s'}: ${a} Apple driver${a==1?'':'s'}` + (t ? `, <b>${t} other${t==1?'':'s'}</b>` : ''),
+      none:'🔌 Nothing plugged in over USB.',
+      macosOk:v=>`✅ Apple's drivers are current (macOS ${v}).`,
+      macosUpd:(v,u)=>`⬆️ macOS ${u} is out (you have ${v}): Apple's USB drivers update with it.`,
+      newer:n=>`⬆️ Maybe newer online: ${n}`, offline:e=>`Couldn't check online: ${e}`,
+      showAll:'Show devices', checkAgain:'⟳ Check again', checking:'Checking…', checked:t=>`Checked ${t}`,
+      hidden:n=>`+ ${n} hub${n==1?'':'s'}`,
+      kinds:{hub:'Hub', printer:'Printer', storage:'Storage', network:'Network', input:'Keyboard / mouse', audio:'Audio',
+        video:'Video', camera:'Camera / scanner', wireless:'Wireless', billboard:'USB-C adapter', vendor:'Device', other:'Device'},
+      noDriver:'no driver of its own', cups:'printed to by macOS (CUPS)',
+      b:{apple_ok:'✓ macOS', apple_update:u=>`⬆ macOS ${u}`, apple_unknown:'macOS', ok:'✓ current', maybe_newer:v=>`⬆ v${v} online?`, unknown:'? see links'},
+      tip:{apple_ok:'Comes with macOS, which is up to date', apple_update:'Comes with macOS: updates with the macOS update',
+        apple_unknown:'Comes with macOS', ok:'No newer version found online',
+        maybe_newer:'A newer version number shows up online - check the links', unknown:'No version found online - check the links'},
+      pr:{configured:n=>`🖨 ${n} is in your printer list.`,
+        airprint:n=>`🖨 ${n} isn't set up yet. It does AirPrint, so it needs no driver.`,
+        local:n=>`🖨 ${n} isn't set up yet. Its driver is already on this Mac.`,
+        found:(n,t,d,s)=>`🖨 ${n} needs <b>${t}</b> (${d}, ${s}).`,
+        downloading:(t,p,s)=>`⬇️ Downloading ${t}: ${p}% of ${s}`,
+        downloaded:t=>`✅ ${t} is in Downloads › Printer Drivers. Open it to install, then add the printer.`,
+        none:n=>`🖨 I couldn't find a driver for ${n} by myself. These might help:`,
+        error:e=>`⚠️ Driver download failed: ${e}`},
+      add:'Add printer', air:'Set up with AirPrint', airMore:'Printers', dl:'Download', cancel:'Stop', install:'Install…', retry:'Try again', folder:'Show folder'},
     sys:{title:'📊 System', cpu:'CPU', ram:'RAM', down:'Download', up:'Upload', per:s=>`one candle = ${s<60?s+' s':(s/60)+' min'}`,
       noPsutil:'Can\'t read system stats (psutil missing).', warming:'Collecting data…'},
     pet:{
@@ -54,7 +82,11 @@ const I18N = {
       sleep:'zzz…', wake:'Oh! I wasn\'t sleeping!',
     },
     // ---- settings window ----
-    title:'Settings', tabs:{general:'General', parcels:'📦 Parcels', sysmon:'📊 System', skin:'🎨 Custom skin'},
+    title:'Settings', tabs:{general:'General', parcels:'📦 Parcels', sysmon:'📊 System', usb:'🔌 USB', printers:'🖨 Printers', skin:'🎨 Custom skin', log:'📝 Log'},
+    lg:{all:'All', checks:'Checks', errors:'Errors', auto:'Live', refresh:'Refresh', copy:'Copy', copied:'Copied',
+        reveal:'Show in Finder', clear:'Clear', clearConfirm:'Clear the log?', empty:'Nothing logged yet.',
+        lines:n => n + ' lines', asleep:'Computer asleep: checks paused', busy:'Checking now…',
+        next:t => 'Next check ' + t, retry:(t, n) => 'No network: retry ' + n + '/3 at ' + t, none:'No check scheduled'},
     language:'Language', size:'Screen size', sizeHint:'Her size and the balloon scale together.',
     onTop:'Keep on top of other windows',
     skin:'Character', side:'Stand on', sideLeft:'Left', sideRight:'Right', addSkin:'Custom',
@@ -72,6 +104,24 @@ const I18N = {
     headless:'Run the browser in the background (invisible)',
     period:'Each candle covers', colors:'Candle colors', colorsAuto:'By language', greenUp:'Green up, red down', redUp:'Red up, green down',
     sysHint:'CPU, memory and network are sampled every second and kept for an hour.',
+    usbAuto:'Download printer drivers by myself', usbAutoHint:'When a USB printer that isn\'t set up needs a driver, I download it from Apple into this folder. Installing is up to you.',
+    usbHubs:'Show hubs and adapters', usbFolder:'Driver folder', usbDevices:'Devices',
+    ap:{intro:'AirPrint printers need no driver: macOS asks the printer what it can do (two-sided, color, paper trays). One click sets a printer up that way. The same printer is often in the list more than once; I keep the best entry and can remove the others.',
+      list:'Printers', refresh:'⟳ Refresh', looking:'Looking…', find:'Look nearby (Bonjour)', addr:'Add by address',
+      addrPh:'IP address or host name, e.g. 10.0.0.12', addrGo:'Set up with AirPrint', addrHint:'For printers on the network that don\'t show up nearby (offices often block that).',
+      setup:'Set up with AirPrint', setupDef:'and make it the default', tidy:n=>`Remove ${n} duplicate${n==1?'':'s'}`, def:'Make default', test:'Print test page',
+      addWin:'Open Add Printer…', none:'No printers yet.',
+      via:{usb:'USB', network:'Network', bonjour:'Nearby', other:'Other'}, notConnected:'not plugged in',
+      st:{ready:'✓ AirPrint', other:'other driver', offline:'not answering', none:'not set up'},
+      isDefault:'default', airprint:'AirPrint', offlineQ:'offline', server:'Print server with its own sign-in: left as it is.',
+      hintOther:'Uses a generic driver. AirPrint usually gives more options (two-sided, color, trays).',
+      hintNone:'Not in the printer list yet.', hintNoUsb:'Plug it in to set it up.',
+      tidyAsk:(n,keep,list)=>`Remove ${n} duplicate entr${n==1?'y':'ies'} of this printer from the printer list?\n\n${list}\n\n"${keep}" stays.`,
+      job:{working:'Working…', done:q=>`✓ Done: "${q}"`, already:q=>`✓ Already set up with AirPrint: "${q}"`,
+        manual:'The macOS Add Printer window is open: pick the printer and choose "AirPrint" under "Use".',
+        error:e=>`⚠️ ${e}`, test:'✓ Test page sent'},
+      err:{'no-airprint':'This printer doesn\'t do AirPrint.', cancelled:'Cancelled.', 'not-connected':'Plug the printer in first.',
+        'bad address':'That doesn\'t look like an address.', 'no answer':'The printer didn\'t answer.'}},
     csIntro:'Describe a character (and/or pick a picture of it). An image AI draws all its poses and the widget turns them into an animated skin.',
     csName:'Name', csDesc:'What does the character look like?', csDescPh:'e.g. an orange tabby cat girl in a courier uniform with a little cap',
     csRef:'Reference picture (optional)', csPick:'Choose…', csRefNo:'This provider can\'t use pictures; only the description is used.',
@@ -96,8 +146,9 @@ const I18N = {
     },
     waiting:'等待首次查询…', updating:'正在刷新…', manual:'手动添加',
     report:{
-      parcels:{startup:'📦 快递检查', manual:'📦 快递检查', scheduled:'📦 快递有新动态', install:'📦 快递'},
+      parcels:{startup:'📦 快递检查', manual:'📦 快递检查', scheduled:'📦 快递有新动态', wake:'📦 快递有新动态', retry:'📦 快递有新动态', install:'📦 快递'},
       skin:{make:'🎨 新皮肤'},
+      usb:{startup:'🔌 USB 设备', manual:'🔌 USB 设备', printer:'🖨 打印机'},
     },
     p:{
       mailOff:'📭 还没连接 Gmail，所以只查你手动添加的单号。',
@@ -106,6 +157,9 @@ const I18N = {
       mailNone:t=> t ? `📬 读了 ${t} 封物流邮件，里面没有单号` : '📬 最近没有物流邮件',
       mailDone:(t,k,nw)=>`📬 读了 ${t} 封邮件：${k} 个单号` + (nw ? `，<b>${nw} 个是新的</b>` : '，没有新的'),
       mailErr:e=>`📭 读取 Gmail 失败：${e}`,
+      mailNoNet:'📡 没有网络，连不上 Gmail。',
+      mailAuth:'🔑 Gmail 不接受这个应用专用密码。',
+      retryLater:'我等会儿再试。', retry:'⟳ 再试一次',
       trackRun:(i,t,c,n)=>`🔎 正在问 parcelsapp ${i}/${t}：${c} <code>${n}</code>`,
       trackDone:t=>`🔎 在 parcelsapp 查了 ${t} 个`, trackNone:'🔎 没有需要查的',
       sum:s=>{ const p=[]; if(s.delivered.length) p.push(`<b>${s.delivered.length} 个已送达</b> 🎉`);
@@ -127,6 +181,30 @@ const I18N = {
       partial:(nm,r)=>`🎨 「${nm}」做好了，但这些动作没成功：${r}。`, err:(nm,e)=>`🎨 「${nm}」没做成：${e}`,
       cancelled:nm=>`🎨 已停止制作「${nm}」。`,
     },
+    u:{title:'🔌 USB', scanning:'🔌 正在看插了什么…', online:n=>`🔌 ${n} 个设备 · 正在上网查驱动…`,
+      found:(n,a,t)=>`🔌 ${n} 个 USB 设备：${a} 个苹果驱动` + (t ? `，<b>${t} 个第三方驱动</b>` : ''),
+      none:'🔌 没有插 USB 设备。',
+      macosOk:v=>`✅ 苹果自带的驱动是最新的（macOS ${v}）。`,
+      macosUpd:(v,u)=>`⬆️ macOS ${u} 出了（你现在是 ${v}）：苹果的 USB 驱动跟着系统一起更新。`,
+      newer:n=>`⬆️ 网上可能有新版：${n}`, offline:e=>`没法上网查：${e}`,
+      showAll:'查看设备', checkAgain:'⟳ 重新检查', checking:'检查中…', checked:t=>`${t} 检查过`,
+      hidden:n=>`+ ${n} 个集线器`,
+      kinds:{hub:'集线器', printer:'打印机', storage:'存储', network:'网络', input:'键盘 / 鼠标', audio:'音频',
+        video:'视频', camera:'相机 / 扫描仪', wireless:'无线', billboard:'USB-C 转接', vendor:'设备', other:'设备'},
+      noDriver:'没有专门的驱动', cups:'由 macOS 打印系统（CUPS）负责',
+      b:{apple_ok:'✓ 系统自带', apple_update:u=>`⬆ macOS ${u}`, apple_unknown:'系统自带', ok:'✓ 最新', maybe_newer:v=>`⬆ 网上有 v${v}？`, unknown:'? 看链接'},
+      tip:{apple_ok:'macOS 自带，系统已是最新', apple_update:'macOS 自带：随系统更新一起更新',
+        apple_unknown:'macOS 自带', ok:'网上没找到更新的版本',
+        maybe_newer:'网上出现了更高的版本号，看看链接确认一下', unknown:'网上没找到版本号，看看链接'},
+      pr:{configured:n=>`🖨 ${n} 已经在打印机列表里了。`,
+        airprint:n=>`🖨 ${n} 还没添加。它支持 AirPrint，不需要驱动。`,
+        local:n=>`🖨 ${n} 还没添加。它的驱动这台 Mac 上已经有了。`,
+        found:(n,t,d,s)=>`🖨 ${n} 需要 <b>${t}</b>（${d}，${s}）。`,
+        downloading:(t,p,s)=>`⬇️ 正在下载 ${t}：${p}%，共 ${s}`,
+        downloaded:t=>`✅ ${t} 已下载到 下载 › Printer Drivers。打开安装，然后添加打印机。`,
+        none:n=>`🖨 我没能自己找到 ${n} 的驱动，这些可能有用：`,
+        error:e=>`⚠️ 驱动下载失败：${e}`},
+      add:'添加打印机', air:'用 AirPrint 设置', airMore:'打印机', dl:'下载', cancel:'停止', install:'安装…', retry:'再试一次', folder:'打开文件夹'},
     sys:{title:'📊 系统状态', cpu:'CPU', ram:'内存', down:'下载', up:'上传', per:s=>`每根 ${s<60?s+' 秒':(s/60)+' 分钟'}`,
       noPsutil:'读不到系统状态（缺少 psutil）。', warming:'正在收集数据…'},
     pet:{
@@ -136,7 +214,11 @@ const I18N = {
       delivered:c=>`你的 ${c} 快递送到啦！🎉`, newPkg:n=>`发现 ${n} 个新快递！`,
       sleep:'zzz…', wake:'诶！我、我没睡着！',
     },
-    title:'设置', tabs:{general:'通用', parcels:'📦 快递', sysmon:'📊 系统状态', skin:'🎨 自定义皮肤'},
+    title:'设置', tabs:{general:'通用', parcels:'📦 快递', sysmon:'📊 系统状态', usb:'🔌 USB', printers:'🖨 打印机', skin:'🎨 自定义皮肤', log:'📝 日志'},
+    lg:{all:'全部', checks:'检查', errors:'错误', auto:'实时', refresh:'刷新', copy:'复制', copied:'已复制',
+        reveal:'在访达中显示', clear:'清空', clearConfirm:'清空日志？', empty:'还没有日志。',
+        lines:n => n + ' 行', asleep:'电脑待机中：已暂停检查', busy:'正在检查…',
+        next:t => '下次检查 ' + t, retry:(t, n) => '没有网络：' + t + ' 第 ' + n + '/3 次重试', none:'没有安排检查'},
     language:'语言', size:'屏幕尺寸', sizeHint:'角色和台词框一起缩放。',
     onTop:'窗口置顶',
     skin:'角色', side:'站在', sideLeft:'左边', sideRight:'右边', addSkin:'自定义',
@@ -154,6 +236,24 @@ const I18N = {
     headless:'后台运行浏览器（不显示窗口）',
     period:'每根K线', colors:'K线颜色', colorsAuto:'跟随语言', greenUp:'绿涨红跌', redUp:'红涨绿跌',
     sysHint:'CPU、内存和网络每秒采样一次，保留一小时。',
+    usbAuto:'自动下载打印机驱动', usbAutoHint:'插上还没设置的 USB 打印机、又需要驱动时，我从苹果下载到这个文件夹。安装由你来。',
+    usbHubs:'显示集线器和转接器', usbFolder:'驱动文件夹', usbDevices:'设备',
+    ap:{intro:'AirPrint 打印机不需要驱动：macOS 直接问打印机会什么（双面、彩色、纸盒）。一键就能按这种方式设置好。同一台打印机常常在列表里出现好几次，我会保留最好的那个，其余的可以一键删掉。',
+      list:'打印机', refresh:'⟳ 刷新', looking:'正在找…', find:'搜索附近 (Bonjour)', addr:'按地址添加',
+      addrPh:'IP 地址或主机名，例如 10.0.0.12', addrGo:'用 AirPrint 设置', addrHint:'用于附近搜不到的网络打印机（公司网络经常屏蔽搜索）。',
+      setup:'用 AirPrint 设置', setupDef:'并设为默认', tidy:n=>`删掉 ${n} 个重复项`, def:'设为默认', test:'打印测试页',
+      addWin:'打开“添加打印机”…', none:'还没有打印机。',
+      via:{usb:'USB', network:'网络', bonjour:'附近', other:'其他'}, notConnected:'未插入',
+      st:{ready:'✓ AirPrint', other:'其他驱动', offline:'没有响应', none:'未设置'},
+      isDefault:'默认', airprint:'AirPrint', offlineQ:'离线', server:'带登录的打印服务器，保持原样。',
+      hintOther:'用的是通用驱动。换成 AirPrint 通常功能更全（双面、彩色、纸盒）。',
+      hintNone:'还不在打印机列表里。', hintNoUsb:'插上后才能设置。',
+      tidyAsk:(n,keep,list)=>`从打印机列表里删掉这台打印机的 ${n} 个重复项？\n\n${list}\n\n保留“${keep}”。`,
+      job:{working:'正在处理…', done:q=>`✓ 完成：“${q}”`, already:q=>`✓ 已经用 AirPrint 设置好了：“${q}”`,
+        manual:'已打开 macOS 的“添加打印机”窗口：选中打印机，在“使用”里选“AirPrint”。',
+        error:e=>`⚠️ ${e}`, test:'✓ 测试页已发送'},
+      err:{'no-airprint':'这台打印机不支持 AirPrint。', cancelled:'已取消。', 'not-connected':'请先插上打印机。',
+        'bad address':'这看起来不是一个地址。', 'no answer':'打印机没有响应。'}},
     csIntro:'描述一个角色（也可以选一张它的图片），图像 AI 会画出它的各种动作，小组件再把它们做成会动的皮肤。',
     csName:'名字', csDesc:'角色长什么样？', csDescPh:'例如：穿快递员制服、戴小帽子的橘猫娘',
     csRef:'参考图（可选）', csPick:'选择…', csRefNo:'这个服务商不支持参考图，只会用文字描述。',
@@ -192,10 +292,21 @@ function errText(code){
   if(k === 'failed') return E.failed(arg);
   return code;
 }
+// what kind of Gmail error: 'net' (no connection / DNS / timeout), 'auth' (password), or ''
+function mailErrKind(e){
+  e = String(e || '').toLowerCase();
+  if(/errno 8|nodename|name or service|network is unreachable|timed out|timeout|connection (reset|refused|aborted)|no route|offline/.test(e)) return 'net';
+  if(/authenticat|invalid credentials|login|password/.test(e)) return 'auth';
+  return '';
+}
 function applyStaticText(){
   document.documentElement.lang = lang === 'zh' ? 'zh' : 'en';
   document.querySelectorAll('[data-t]').forEach(el => {
     const v = el.dataset.t.split('.').reduce((o, k) => o && o[k], T());
     if(typeof v === 'string') el.textContent = v;
+  });
+  document.querySelectorAll('[data-tp]').forEach(el => {
+    const v = el.dataset.tp.split('.').reduce((o, k) => o && o[k], T());
+    if(typeof v === 'string') el.placeholder = v;
   });
 }

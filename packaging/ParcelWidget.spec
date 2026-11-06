@@ -2,14 +2,14 @@
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 
 a = Analysis(
     [os.path.join(ROOT, "app.py")],
     pathex=[ROOT],
     datas=[(os.path.join(ROOT, "ui"), "ui")],
     # imported inside functions / by name
-    hiddenimports=["features.parcels", "features.sysmon", "features.poke", "menubar", "menus",
+    hiddenimports=["features.parcels", "features.sysmon", "features.poke", "features.usb", "usbscan", "driverinfo", "airprint", "menubar", "menus", "power",
                    "mail_scanner", "tracker", "skinmaker", "skinmaker.pipeline", "skinmaker.providers",
                    "keyring.backends.macOS", "webview.platforms.cocoa"],
     excludes=["tkinter", "pytest", "IPython"],

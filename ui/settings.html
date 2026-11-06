@@ -12,8 +12,8 @@
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
   font:13px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Segoe UI","Microsoft YaHei",sans-serif}
 body{display:flex;flex-direction:column}
-nav{display:flex;gap:4px;padding:10px 12px 0;border-bottom:1px solid var(--line);flex:none}
-nav button{border:0;background:none;color:var(--muted);padding:7px 12px;border-radius:8px 8px 0 0;font-size:13px;cursor:pointer;
+nav{display:flex;gap:2px;padding:10px 10px 0;border-bottom:1px solid var(--line);flex:none;overflow-x:auto;scrollbar-width:none}
+nav button{border:0;background:none;color:var(--muted);padding:7px 9px;white-space:nowrap;flex:none;border-radius:8px 8px 0 0;font-size:13px;cursor:pointer;
   border-bottom:2px solid transparent;margin-bottom:-1px}
 nav button.on{color:var(--text);font-weight:600;border-bottom-color:var(--accent)}
 main{flex:1;overflow-y:auto;padding:4px 18px 24px}
@@ -67,6 +67,26 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
 .prog>div{height:100%;background:var(--accent);width:0;transition:width .3s}
 .jobmsg{font-size:12px;margin-top:5px;color:var(--muted)}
 .jobmsg.err{color:var(--err)}
+.logbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.logbar .grow{flex:1}
+.logbar{flex-wrap:nowrap}
+.logst{font-size:11.5px;color:var(--muted);margin-top:8px}
+.logst b{color:var(--text);font-weight:600}
+#logbox{margin-top:8px;height:400px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:6px 8px;font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;user-select:text}
+#logbox .t{color:var(--muted)}
+#logbox .err{color:var(--err)}
+#logbox .ck{color:var(--accent)}
+#logbox .pw{color:var(--green)}
+.ubox{padding:8px 0;border-top:1px solid var(--line)}
+.ubox:first-child{border-top:0}
+.ubox .t{font-weight:600}
+.ubox .m{color:var(--muted);font-size:11.5px}
+.ubox .d{display:flex;gap:8px;align-items:baseline;font-size:11.5px;margin-top:3px}
+.ubox .d code{font:11px ui-monospace,Menlo,monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ubox a{color:var(--accent);font-size:11.5px;cursor:pointer;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bdg{font-size:10.5px;font-weight:700;padding:0 6px;border-radius:8px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.bdg.ok{background:#e3f4e9;color:var(--green)}.bdg.up{background:#fff1d6;color:#a86400}
 .toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#000c;color:#fff;padding:5px 11px;border-radius:7px;
   font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
@@ -123,6 +143,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
   <div class="hint" style="margin-top:12px" data-t="sysHint"></div>
 </section>
 
+<!-- USB devices and their drivers (macOS) -->
+<section class="tab" id="tab-usb">
+  <label class="chk" style="color:var(--text)"><input type="checkbox" id="usbAuto" onchange="saveUsb()"><span data-t="usbAuto"></span></label>
+  <div class="hint" data-t="usbAutoHint"></div>
+  <label class="chk" style="color:var(--text)"><input type="checkbox" id="usbHubs" onchange="saveUsb()"><span data-t="usbHubs"></span></label>
+  <div class="section" data-t="usbFolder"></div>
+  <div class="row"><span class="hint grow" id="usbFolder" style="margin:0"></span>
+    <button class="btn ghost" onclick="api().feature('usb','reveal_downloads')" data-t="lg.reveal"></button></div>
+  <div class="row" style="margin-top:16px"><div class="section grow" style="margin:0" data-t="usbDevices"></div>
+    <button class="btn ghost" id="usbCheck" onclick="usbCheck()"></button></div>
+  <div class="hint" id="usbStatus"></div>
+  <div class="card" id="usbList" style="margin-top:8px"></div>
+</section>
+
 <!-- Custom skin: generated with an image AI (skinmaker/) -->
 <section class="tab" id="tab-skin">
   <div class="hint" data-t="csIntro" style="margin-top:12px"></div>
@@ -146,14 +180,43 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
     <button class="btn ghost" id="cs_cancel" onclick="cancelSkinGen()" data-t="cancel"></button></div>
   <div class="hint" data-t="csCost"></div>
 </section>
+
+<!-- Log: widget.log, for debugging -->
+<section class="tab" id="tab-printers">
+  <div class="hint" style="margin-top:12px" data-t="ap.intro"></div>
+  <div class="row" style="margin-top:14px"><div class="section grow" style="margin:0" data-t="ap.list"></div>
+    <button class="btn ghost" id="apFind" onclick="apRefresh(true)" data-t="ap.find"></button>
+    <button class="btn ghost" id="apRefresh" onclick="apRefresh(false)"></button></div>
+  <label class="chk" style="color:var(--text);margin-top:6px"><input type="checkbox" id="apDef" checked><span data-t="ap.setupDef"></span></label>
+  <div class="card" id="apList" style="margin-top:8px"></div>
+  <div class="section" data-t="ap.addr"></div>
+  <div class="row"><input type="text" id="apAddr" style="flex:1;width:auto" data-tp="ap.addrPh" onkeydown="if(event.key==='Enter')apAddAddr()">
+    <button class="btn" id="apAddrGo" onclick="apAddAddr()" data-t="ap.addrGo"></button></div>
+  <div class="hint" data-t="ap.addrHint"></div>
+  <div class="jobmsg" id="apAddrMsg"></div>
+  <div class="row" style="margin-top:14px"><button class="btn ghost" onclick="api().feature('usb','add_printer_window')" data-t="ap.addWin"></button>
+    <button class="btn ghost" onclick="api().feature('usb','printer_settings')">⚙︎ Printers &amp; Scanners</button></div>
+</section>
+<section class="tab" id="tab-log">
+  <div class="logbar"><div class="seg" id="logSeg"></div>
+    <label class="chk" style="margin:0 0 0 6px;color:var(--text)"><input type="checkbox" id="logAuto" checked onchange="logTimer()"><span data-t="lg.auto"></span></label>
+    <span class="grow"></span>
+    <button class="btn ghost" onclick="fillLog()" data-t="lg.refresh"></button>
+    <button class="btn ghost" onclick="copyLog()" data-t="lg.copy"></button></div>
+  <div class="logst" id="logst"></div>
+  <div id="logbox"></div>
+  <div class="logbar"><span class="hint grow" id="logpath" style="margin:0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left"></span>
+    <button class="btn ghost" onclick="api().reveal_log()" data-t="lg.reveal"></button>
+    <button class="btn ghost" onclick="clearLog()" data-t="lg.clear"></button></div>
+</section>
 </main>
 <div class="toast" id="toast"></div>
 
 <script src="i18n.js"></script>
 <script>
 /* The settings window. Tabs: General (the widget), one per feature, and Custom skin.
-   Opened from the menus: settings.html#general | #parcels | #parcels:add | #sysmon | #skin */
-const TABS = ['general', 'parcels', 'sysmon', 'skin'];
+   Opened from the menus: settings.html#general | #parcels | #parcels:add | #sysmon | #skin | #log */
+const TABS = ['general', 'parcels', 'sysmon', 'usb', 'printers', 'skin', 'log'];
 let tab = 'general', state = {f: {}}, settings = null;
 
 function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1500); }
@@ -166,6 +229,9 @@ function openTab(t){
   document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === 'tab-' + tab));
   renderNav();
   if(tab === 'skin') fillCustomSkin();
+  if(tab === 'log') fillLog();
+  if(tab === 'printers') apRefresh(false);
+  logTimer();
 }
 function renderNav(){
   $('nav').innerHTML = TABS.map(k => `<button class="${k === tab ? 'on' : ''}" onclick="openTab('${k}')">${esc(T().tabs[k])}</button>`).join('');
@@ -177,7 +243,7 @@ async function load(){
   if(state.lang !== lang){ lang = state.lang; applyStaticText(); renderNav(); settings = null; }
   document.title = T().title;
   if(!settings){ settings = await api().get_settings(); fillForms(); }
-  fillGeneral(); fillPackages(); fillSysmon();
+  fillGeneral(); fillPackages(); fillSysmon(); fillUsb(); fillPrinters();
   if(tab === 'skin') renderSkinJob(state.skin_job);
 }
 window.onBackendUpdate = () => load();
@@ -259,6 +325,89 @@ async function saveSys(ch){ Object.assign(settings.sysmon, ch); await api().save
 const pickPeriod = p => saveSys({period: +p});
 const pickColors = c => saveSys({colors: c});
 
+/* ---------------- USB ---------------- */
+function fillUsb(){
+  const s = settings && settings.usb, U = T().u, st = (state.f || {}).usb || {};
+  if(!s) return;
+  $('usbAuto').checked = !!s.auto_download; $('usbHubs').checked = !!s.show_hubs;
+  $('usbFolder').textContent = s.folder.replace(/^\/Users\/[^/]+/, '~');
+  const busy = st.busy || (st.online || {}).st === 'running';
+  $('usbCheck').textContent = busy ? U.checking : U.checkAgain; $('usbCheck').disabled = !!busy;
+  const m = st.macos || {}, upd = ((m.updates || []).find(u => /^macos/i.test(u.title)) || {}).version;
+  $('usbStatus').textContent = [st.last_scan ? U.checked(hhmm(st.last_scan)) : '',
+    upd ? U.macosUpd(m.version, upd) : m.version && m.updates ? U.macosOk(m.version) : ''].filter(Boolean).join(' · ');
+  const ds = st.devices || [];
+  $('usbList').innerHTML = ds.length ? ds.map(d => {
+    const B = U.b, drv = (d.drivers || []).map(x => {
+      const txt = x.check === 'apple_update' ? B.apple_update(upd || '') : x.check === 'maybe_newer' ? B.maybe_newer(x.hint) : B[x.check] || '';
+      const cls = /ok$/.test(x.check) ? 'ok' : /update|newer/.test(x.check) ? 'up' : '';
+      return `<div class="d"><code title="${esc(x.path || '')}">${esc(x.bundle)} ${esc(x.version || '')} · ${esc(x.type)}</code>
+        <span class="bdg ${cls}" title="${esc(U.tip[x.check] || '')}">${esc(txt)}</span></div>` +
+        ((x.links || []).length && !x.apple ? (x.links.map(l => `<a onclick="api().open_url('${esc(l.url)}')">↗ ${esc(l.title)}</a>`).join('')) : '');
+    }).join('') || `<div class="m">${esc(d.kind === 'printer' ? U.cups : U.noDriver)}</div>`;
+    const meta = [d.vendor_db || d.vendor, d.product_db, `${d.vid}:${d.pid}`, d.speed, d.serial ? 'S/N ' + d.serial : ''].filter(Boolean).map(esc).join(' · ');
+    return `<div class="ubox"><div class="t">${esc(d.name)} <span class="m">· ${esc(U.kinds[d.kind] || '')}</span></div><div class="m">${meta}</div>${drv}</div>`;
+  }).join('') : `<div class="empty">${esc(U.none)}</div>`;
+}
+async function saveUsb(){
+  await api().save_settings('usb', {auto_download: $('usbAuto').checked, show_hubs: $('usbHubs').checked});
+  settings = null; await load();
+}
+async function usbCheck(){ await api().feature('usb', 'check'); load(); }
+
+/* ---------------- Printers & AirPrint ---------------- */
+let apFound = false;
+function apRefresh(discover){ if(discover) apFound = true; api().feature('usb', 'printers', !!discover); }
+function apJobText(j){
+  const J = T().ap.job, E = T().ap.err;
+  if(!j) return '';
+  if(j.st === 'working') return J.working;
+  if(j.st === 'manual') return J.manual;
+  if(j.st === 'error') return J.error(E[j.msg] || j.msg || '');
+  if(j.what === 'test') return J.test;
+  return j.already ? J.already(j.queue || '') : J.done(j.queue || '');
+}
+function fillPrinters(){
+  const A = T().ap, air = ((state.f || {}).usb || {}).air;
+  if(!air || !$('apList')) return;
+  const loading = air.loading, jobs = air.jobs || {}, gs = air.groups;
+  $('apRefresh').textContent = loading ? A.looking : A.refresh; $('apRefresh').disabled = !!loading; $('apFind').disabled = !!loading;
+  const defOn = $('apDef').checked;
+  $('apList').innerHTML = !gs ? `<div class="empty"><span class="spin">⟳</span> ${esc(A.looking)}</div>` : gs.length ? gs.map(g => {
+    const k = esc(g.key), j = jobs[g.key], busy = j && j.st === 'working';
+    const st = A.st[g.status] || '', cls = g.status === 'ready' ? 'ok' : g.status === 'other' ? 'up' : '';
+    const via = (A.via[g.via] || '') + (g.via === 'usb' && !g.connected ? ' · ' + A.notConnected : '');
+    const qs = (g.queues || []).map(q => `<div class="d"><code title="${esc(q.uri)}">${esc(q.name)} · ${esc(q.model || '')}</code>` +
+      [q.default ? `<span class="bdg ok">${esc(A.isDefault)}</span>` : '', q.airprint ? `<span class="bdg">${esc(A.airprint)}</span>` : '',
+       q.offline ? `<span class="bdg up">${esc(A.offlineQ)}</span>` : ''].join('') + '</div>').join('');
+    const hint = g.server ? A.server : g.status === 'other' ? A.hintOther : g.status === 'none' ? A.hintNone :
+      g.status !== 'ready' && g.via === 'usb' && !g.connected ? A.hintNoUsb : '';
+    const b = [];
+    if(g.status !== 'ready' && g.can_setup) b.push(`<button class="btn" ${busy ? 'disabled' : ''} onclick="apSetup('${k}')">🖨 ${esc(A.setup)}</button>`);
+    if(g.best && (g.extra || []).length) b.push(`<button class="btn ghost" ${busy ? 'disabled' : ''} onclick="apTidy('${k}')">${esc(A.tidy(g.extra.length))}</button>`);
+    if(g.best && !g.default) b.push(`<button class="btn ghost" ${busy ? 'disabled' : ''} onclick="apCall('make_default','${k}')">${esc(A.def)}</button>`);
+    if(g.best) b.push(`<button class="btn ghost" ${busy ? 'disabled' : ''} onclick="apCall('test_page','${k}')">${esc(A.test)}</button>`);
+    return `<div class="ubox"><div class="t">${esc(g.name)} <span class="m">· ${esc(via)}</span> <span class="bdg ${cls}">${esc(st)}</span></div>
+      ${qs}${hint ? `<div class="m" style="margin-top:3px">${esc(hint)}</div>` : ''}
+      ${b.length ? `<div class="row" style="margin-top:6px;flex-wrap:wrap">${b.join('')}</div>` : ''}
+      ${j ? `<div class="jobmsg ${j.st === 'error' ? 'err' : ''}">${esc(apJobText(j))}</div>` : ''}</div>`;
+  }).join('') : `<div class="empty">${esc(A.none)}</div>`;
+  const aj = jobs.addr;
+  $('apAddrMsg').textContent = apJobText(aj); $('apAddrMsg').className = 'jobmsg' + (aj && aj.st === 'error' ? ' err' : '');
+  $('apAddrGo').disabled = !!(aj && aj.st === 'working');
+}
+async function apSetup(k){ await api().feature('usb', 'airprint', k, $('apDef').checked); load(); }
+async function apCall(m, k){ await api().feature('usb', m, k); load(); }
+async function apTidy(k){
+  const g = ((((state.f || {}).usb || {}).air || {}).groups || []).find(x => x.key === k);
+  if(!g || !confirm(T().ap.tidyAsk(g.extra.length, g.best, g.extra.map(n => '• ' + n).join('\n')))) return;
+  apCall('remove_extra', k);
+}
+async function apAddAddr(){
+  const v = $('apAddr').value.trim(); if(!v) return;
+  await api().feature('usb', 'airprint_address', v, $('apDef').checked); load();
+}
+
 /* ---------------- Custom skin ---------------- */
 let skinGen = null, refImage = null;
 const provName = p => lang === 'zh' && p.name_zh ? p.name_zh : p.name;
@@ -325,6 +474,48 @@ function renderSkinJob(j){
   $('cs_go').disabled = !!running;
   $('cs_cancel').textContent = running ? T().cancel : T().close;
 }
+
+/* ---------------- Log ---------------- */
+let logFilter = 'all', logLines = [], logT = null;
+const LOG_KINDS = {
+  errors: l => /error[:(]|traceback|exception|failed|giving up|no network|^\s+File "|[1-9]\d* errors/i.test(l),
+  checks: l => /check|gmail|scan|track|attempt|wake|sleep|retry|startup|no network/i.test(l),
+};
+function logClass(l){
+  if(LOG_KINDS.errors(l)) return 'err';
+  if(/sleep|woke|wake/i.test(l)) return 'pw';
+  if(/check \(/i.test(l)) return 'ck';
+  return '';
+}
+function logTimer(){
+  clearInterval(logT);
+  if(tab === 'log' && $('logAuto').checked) logT = setInterval(fillLog, 3000);
+}
+async function fillLog(){
+  const L = T().lg, r = await api().get_log(600);
+  logLines = r.lines;
+  seg('logSeg', ['all', 'checks', 'errors'].map(k => ({key: k, label: L[k]})), logFilter, 'pickLogFilter');
+  const st = r.status || {};
+  $('logst').innerHTML = esc(st.asleep ? L.asleep : st.busy ? L.busy : !st.next_check ? L.none
+    : st.retry ? L.retry(hhmm(st.next_check), st.net_tries) : L.next(hhmm(st.next_check)));
+  $('logpath').textContent = '\u200e' + r.path.replace(/^.*\/Library\//, '~/Library/') + ' · ' + L.lines(r.lines.length) + '\u200e';
+  $('logpath').title = r.path;
+  const box = $('logbox'), atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 20;
+  const f = LOG_KINDS[logFilter], rows = f ? logLines.filter(f) : logLines;
+  box.innerHTML = rows.length ? rows.map(l => {
+    const m = l.match(/^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (.*)$/);
+    return `<div class="${logClass(l)}">${m ? `<span class="t">${esc(m[1])}</span> ${esc(m[2])}` : esc(l)}</div>`;
+  }).join('') : `<div class="t">${esc(L.empty)}</div>`;
+  if(atEnd || !box.dataset.seen){ box.scrollTop = box.scrollHeight; box.dataset.seen = 1; }
+}
+function pickLogFilter(k){ logFilter = k; fillLog(); }
+async function copyLog(){
+  const f = LOG_KINDS[logFilter], text = (f ? logLines.filter(f) : logLines).join('\n');
+  try { await navigator.clipboard.writeText(text); }
+  catch(e){ const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast(T().lg.copied);
+}
+async function clearLog(){ if(confirm(T().lg.clearConfirm)){ await api().clear_log(); fillLog(); } }
 
 window.addEventListener('pywebviewready', async () => { applyStaticText(); await load(); openTab(location.hash.slice(1)); });
 </script>

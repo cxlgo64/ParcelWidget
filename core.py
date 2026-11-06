@@ -92,6 +92,20 @@ def log(msg):
         pass
 
 
+def trim_log(keep=512 * 1024, limit=2 * 1024 * 1024):
+    """keep widget.log from growing forever: past `limit` bytes, keep the last `keep`"""
+    try:
+        if os.path.getsize(LOG_PATH) > limit:
+            with open(LOG_PATH, "rb") as f:
+                f.seek(-keep, 2)
+                tail = f.read()
+            tail = tail[tail.find(b"\n") + 1:]
+            with open(LOG_PATH, "wb") as f:
+                f.write(tail)
+    except OSError:
+        pass
+
+
 # keys that used to live at the top level of config.json (before features had their own section)
 _OLD_PARCEL_KEYS = ("gmail_address", "scan_days", "headless", "browser")
 

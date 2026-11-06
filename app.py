@@ -18,8 +18,8 @@ import webview
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from core import (APP_DIR, IS_MAC, SIZE_PRESETS, SKINS_DIR, UI_DIR, later, list_skins, load_config,  # noqa: E402,F401
-                  log, preset, save_config)
+from core import (APP_DIR, IS_MAC, LOG_PATH, SIZE_PRESETS, SKINS_DIR, UI_DIR, later, list_skins, load_config,  # noqa: E402,F401
+                  log, preset, save_config, trim_log)
 from features import make_features  # noqa: E402
 from reports import Reports  # noqa: E402
 
@@ -35,6 +35,7 @@ class App:
         self.skin_job = None          # custom skin being generated: {"step", "total", "label", "error", "id", "done"}
         self._skin_stop = False
         self._wake = threading.Event()
+        self.asleep = False           # the computer is asleep (see power.py): no background jobs
         self._push_at = 0
         self._push_timer = None
         self.reports = Reports(on_change=self.push_soon)
@@ -55,13 +56,34 @@ class App:
                 log(traceback.format_exc())
         while not self.closing:
             now = time.time()
-            for f in self.features:
+            # while asleep macOS still wakes us for a few seconds now and then: do nothing then
+            for f in ([] if self.asleep else self.features):
                 try:
                     f.tick(now)
                 except Exception:
                     log(traceback.format_exc())
             self._wake.wait(15)
             self._wake.clear()
+
+    def on_sleep(self):
+        """the computer goes to sleep (main thread: keep it short)"""
+        self.asleep = True
+        log("computer going to sleep: background checks paused")
+        for f in self.features:
+            try:
+                f.sleep()
+            except Exception:
+                log(traceback.format_exc())
+
+    def on_wake(self):
+        self.asleep = False
+        log("computer woke up")
+        for f in self.features:
+            try:
+                f.wake()
+            except Exception:
+                log(traceback.format_exc())
+        self._wake.set()
 
     # ---------- windows ----------
     def show_window(self):
@@ -154,6 +176,8 @@ class Api:
 
     def __init__(self, app):
         self.a = app
+        self._fit_lock = threading.Lock()
+        self._fit_want = None
 
     # ---------- state ----------
     def get_state(self):
@@ -378,26 +402,63 @@ class Api:
         z = preset(a.cfg)["zoom"]
         w = int(max(60, round(float(css_width) * z)))
         h = int(max(60, round(float(css_height) * z)))
+        # the balloon often changes size several times in a row (a report filling in). Each
+        # resize runs on its own thread, so they could finish out of order and leave the window
+        # at an older, smaller size - cutting off the top of the balloon. So: resizes run one at
+        # a time, and each applies the newest size asked for.
+        self._fit_want = (w, h)
 
         def do():
-            win = a.window
-            if os.environ.get("PARCELWIDGET_DEBUG"):
-                log("fit %dx%d (window %sx%s)" % (w, h, win.width, win.height))
-            if abs((win.height or 0) - h) <= 1 and abs((win.width or 0) - w) <= 1:
-                return
-            from webview.window import FixPoint
-            side = FixPoint.EAST if a.cfg.get("skin_side", "right") == "right" else FixPoint.WEST
-            win.resize(w, h, fix_point=FixPoint.SOUTH | side)
+            with self._fit_lock:
+                want = self._fit_want
+                if not want:
+                    return
+                self._fit_want = None
+                fw, fh = want
+                win = a.window
+                if os.environ.get("PARCELWIDGET_DEBUG"):
+                    log("fit %dx%d (window %sx%s)" % (fw, fh, win.width, win.height))
+                if abs((win.height or 0) - fh) <= 1 and abs((win.width or 0) - fw) <= 1:
+                    return
+                from webview.window import FixPoint
+                side = FixPoint.EAST if a.cfg.get("skin_side", "right") == "right" else FixPoint.WEST
+                win.resize(fw, fh, fix_point=FixPoint.SOUTH | side)
         later(do, 0)
         return h
 
+    # Window position for dragging: the top-left corner, x right / y down, in one coordinate
+    # space across all displays (the page only adds mouse deltas to it).
+    # macOS: pywebview's get_position and move disagree when there are several displays -
+    # move adds the origin of the display that was active at launch, get_position doesn't -
+    # so with an external display the window jumped to a screen edge on the first drag.
+    # Here both use global Cocoa coordinates, flipped against the primary display.
+    def _ns(self):
+        return getattr(self.a.window, "native", None) if IS_MAC else None
+
     def get_pos(self):
-        return [self.a.window.x, self.a.window.y]
+        ns = self._ns()
+        if ns is None:
+            return [self.a.window.x, self.a.window.y]
+        import AppKit
+        top = AppKit.NSScreen.screens()[0].frame().size.height
+        f = ns.frame()
+        return [f.origin.x, top - (f.origin.y + f.size.height)]
 
     def move(self, x, y):
-        # called repeatedly while dragging; window.move is thread-safe
+        # called repeatedly while dragging
         try:
-            self.a.window.move(int(x), int(y))
+            ns = self._ns()
+            if ns is None:
+                self.a.window.move(int(x), int(y))
+                return True
+            import AppKit
+            from PyObjCTools import AppHelper
+            x, y = float(x), float(y)
+
+            def do():
+                top = AppKit.NSScreen.screens()[0].frame().size.height
+                ns.setFrameTopLeftPoint_(AppKit.NSPoint(x, top - y))
+            AppHelper.callAfter(do)
         except Exception as ex:
             log("move error %r" % ex)
         return True
@@ -408,6 +469,37 @@ class Api:
             self.a.menubar.popup()
             return True
         return False
+
+    # ---------- the log (settings → Log) ----------
+    def get_log(self, max_lines=600):
+        """the last lines of widget.log, plus what the scheduler is up to"""
+        try:
+            with open(LOG_PATH, "rb") as f:
+                f.seek(0, 2)
+                size = f.tell()
+                f.seek(max(0, size - 256 * 1024))
+                lines = f.read().decode("utf-8", "replace").splitlines()[-int(max_lines):]
+        except FileNotFoundError:
+            size, lines = 0, []
+        p = self.a.feature("parcels")
+        status = {"asleep": self.a.asleep}
+        if p:
+            status.update(busy=p.busy, next_check=p.next_due.timestamp() if p.next_due else None,
+                          retry=p.retry_due, net_tries=p.net_tries, last_run=p.last_run)
+        return {"ok": True, "lines": lines, "size": size, "path": LOG_PATH, "status": status}
+
+    def clear_log(self):
+        open(LOG_PATH, "w").close()
+        log("log cleared")
+        return True
+
+    def reveal_log(self):
+        import subprocess
+        if IS_MAC:
+            subprocess.Popen(["open", "-R", LOG_PATH])
+        elif sys.platform == "win32":
+            subprocess.Popen(["explorer", "/select,", LOG_PATH])
+        return True
 
     def open_url(self, url):
         import webbrowser
@@ -424,6 +516,7 @@ class Api:
 
 
 def main():
+    trim_log()
     app = App()
     api = Api(app)
     app.api = api
@@ -453,12 +546,14 @@ def main():
     if IS_MAC:
         try:
             import menubar
+            import power
             from PyObjCTools import AppHelper
             menubar.hide_dock_icon()
             app.menubar = menubar.MenuBar(app)
 
             def started():
                 AppHelper.callAfter(app.menubar.install)
+                AppHelper.callAfter(lambda: power.watch(app.on_sleep, app.on_wake))
                 app.push()
         except Exception as ex:
             app.menubar = None

@@ -4,7 +4,9 @@ Each feature is a class with:
     id, icon, name, name_zh      shown on her hover buttons, in the menus and the settings window
     hover = True                 gets a button around her when you hover over her (idle mode)
     start()                      called once at launch (start threads, run the first check)
-    tick(now)                    called every ~15 s by the scheduler (run jobs that are due)
+    tick(now)                    called every ~15 s by the scheduler (run jobs that are due);
+                                 not called while the computer is asleep
+    sleep() / wake()             the computer goes to sleep / wakes up
     state() -> dict              sent to the pages as state["f"][id]
     menu(L) -> [items]           its submenu in the menu bar / right-click menu (see menus.py)
     handle(action, arg)          a menu click "<id>:<action>" lands here
@@ -39,6 +41,12 @@ class Feature:
     def tick(self, now):
         pass
 
+    def sleep(self):
+        pass
+
+    def wake(self):
+        pass
+
     def state(self):
         return {}
 
@@ -62,5 +70,6 @@ def make_features(app):
     from .parcels import Parcels
     from .poke import Poke
     from .sysmon import SysMon
+    from .usb import USB
     # order = order of her hover buttons and of the menus
-    return [Parcels(app), SysMon(app), Poke(app)]
+    return [Parcels(app), SysMon(app), USB(app), Poke(app)]

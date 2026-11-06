@@ -27,6 +27,8 @@ def spec(app):
     out = []
     for f in app.features:
         title = "%s  %s" % (f.icon, f.name_zh if lang == "zh" else f.name)
+        if not f.info().get("hover", True) and f.menu(lang) is None:
+            continue            # not available on this system (e.g. USB check outside macOS)
         sub = f.menu(lang)
         if sub:
             out.append({"title": title, "sub": sub})

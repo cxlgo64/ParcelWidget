@@ -97,6 +97,22 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 .gotbtn{border:1.5px solid var(--green);background:var(--greenbg);color:var(--green);font-weight:700;border-radius:10px;
   padding:1px 8px;font-size:11px;cursor:pointer;flex:none;margin-top:1px}
 .spin{display:inline-block;animation:spin 1s linear infinite}
+/* USB devices */
+.ud{display:flex;gap:7px;padding:5px 0;border-top:1px dashed #d6e4f7}
+.ud:first-child{border-top:0}
+.ud .ic{font-size:15px;line-height:1.2;flex:none;width:18px;text-align:center}
+.ud .mid{flex:1;min-width:0}
+.ud .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ud .sub{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ud .drv{display:flex;gap:5px;align-items:center;font-size:11px;margin-top:1px}
+.ud .drv .dn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,Menlo,monospace;font-size:10.5px}
+.badge{flex:none;font-size:10px;font-weight:700;padding:0 6px;border-radius:8px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.badge.ok{background:var(--greenbg);color:var(--green)}
+.badge.up{background:#fff3dc;color:#b26a00}
+.ud .links a,.prl a{color:var(--accent);font-size:11px;cursor:pointer;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prl .acts{display:flex;gap:10px;margin-top:3px}
+.bar{height:5px;border-radius:3px;background:var(--chip);overflow:hidden;margin-top:4px}
+.bar>div{height:100%;background:var(--frame)}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* system monitor */
@@ -179,7 +195,10 @@ const FEATURES = {
       if(r.live && !m && !a.track) out.push(p.checking + '<span class="dots"></span>');
       if(m){
         if(m.st === 'off') out.push(`<span class="dim">${p.mailOff}</span>`);
-        else if(m.st === 'error') out.push(`<span class="warn">${esc(p.mailErr(m.err || ''))}</span>`);
+        else if(m.st === 'error'){
+          const k = mailErrKind(m.err);
+          out.push(`<span class="warn">${k === 'net' ? esc(p.mailNoNet) : k === 'auth' ? esc(p.mailAuth) : esc(p.mailErr(m.err || ''))}</span>`);
+        }
         else if(m.st === 'reading'){
           const k = (m.found || []).length;
           out.push(p.mailReading(m.n, m.total) + (k ? ' · ' + p.soFar(k) : '') + '<span class="dots"></span>');
@@ -193,13 +212,15 @@ const FEATURES = {
         if(t.st === 'running'){
           const it = (P().items || []).find(i => i.number === t.cur) || {};
           out.push(p.trackRun(Math.min(t.n + 1, t.total), t.total, esc(it.carrier || ''), esc(shortNum(t.cur))) + '<span class="dots"></span>');
-        } else out.push(t.total ? p.trackDone(t.n) : p.trackNone);
+        } else if(t.total) out.push(p.trackDone(t.n));
+        else if(!(m && m.st === 'error')) out.push(p.trackNone);   // after a Gmail error it says nothing
       }
       let cards = '';
       if(a.sum){
         // new packages from Gmail are already counted on the mail line
         const s2 = m && m.st === 'done' ? {...a.sum, new: []} : a.sum;
-        if(s2.delivered.length || s2.moved.length || s2.new.length || !a.sum.new.length) out.push(p.sum(s2));
+        const quiet = m && m.st === 'error' && !a.sum.checked;   // nothing happened: no "no changes"
+        if(!quiet && (s2.delivered.length || s2.moved.length || s2.new.length || !a.sum.new.length)) out.push(p.sum(s2));
         if(a.sum.errors.length) out.push(`<span class="warn">${p.sumErr(a.sum.errors.length)}</span>`);
         // the packages this report is about
         const nums = [...a.sum.delivered, ...a.sum.new, ...a.sum.moved, ...a.sum.errors];
@@ -207,8 +228,11 @@ const FEATURES = {
         cards = [...new Set(nums)].filter(n => by[n]).map(n => pkRow(by[n], false)).join('');
       }
       if(a.err) out.push(`<span class="warn">${esc(p.runErr(a.err))}</span>`);
-      const link = !r.live && !a.cached && m && (m.st === 'off' || m.st === 'error')
-        ? `<button class="lnk" onclick="api().open_settings('parcels')">${esc(p.setup)} ›</button>` : '';
+      // no network: offer to try again; Gmail not set up or refusing the password: its settings
+      const net = m && m.st === 'error' && mailErrKind(m.err) === 'net';
+      const link = r.live || a.cached || !m ? ''
+        : net ? `<button class="lnk" ${P().busy ? 'disabled' : ''} onclick="ack(${r.id}); fcall('parcels','check')">${esc(p.retry)}</button>`
+        : (m.st === 'off' || m.st === 'error') ? `<button class="lnk" onclick="api().open_settings('parcels')">${esc(p.setup)} ›</button>` : '';
       return {html: out.map(l => `<div class="ln">${l}</div>`).join('') + (cards ? `<div style="margin-top:4px">${cards}</div>` : ''), link};
     },
     view(){
@@ -236,6 +260,38 @@ const FEATURES = {
         wide: true, live: true, after: () => sysmon.start(), close: () => sysmon.stop()};
     },
   },
+  usb: {
+    report(r){
+      const U = T().u, a = r.data || {}, out = [];
+      if(r.kind === 'printer') return {html: prLines(a.printer || {})};
+      if(a.st === 'scanning') out.push(U.scanning + '<span class="dots"></span>');
+      else if(a.st === 'online') out.push(U.online(a.n) + '<span class="dots"></span>');
+      else {
+        out.push(a.n ? U.found(a.n, a.apple || 0, a.third || 0) : U.none);
+        const m = a.macos || {};
+        if(m.update) out.push(esc(U.macosUpd(m.version || '?', m.update)));
+        else if(m.version && !a.err) out.push(esc(U.macosOk(m.version)));
+        if((a.newer || []).length) out.push(`<span class="warn">${esc(U.newer(a.newer.join(', ')))}</span>`);
+        if(a.err) out.push(`<span class="dim">${esc(U.offline(a.err))}</span>`);
+      }
+      const prs = (a.printers || []).map(p => (U_().printers || {})[p.key] || p);
+      const html = out.map(l => `<div class="ln">${l}</div>`).join('') + prs.map(prLines).join('');
+      const link = r.live ? '' : `<button class="lnk" onclick="ack(${r.id}); openFeature('usb')">${esc(U.showAll)} ›</button>`;
+      return {html, link};
+    },
+    view(){
+      const U = T().u, s = U_(), ds = s.devices || [];
+      const prs = Object.values(s.printers || {}).filter(p => p.st !== 'configured');
+      const rows = ds.map(d => usbRow(d, s)).join('') + (s.hidden ? `<div class="ln dim" style="margin-top:3px">${esc(U.hidden(s.hidden))}</div>` : '');
+      const when = s.busy || (s.online || {}).st === 'running' ? U.checking : s.last_scan ? U.checked(hhmm(s.last_scan)) : '';
+      return {
+        title: U.title + (ds.length ? ` · ${ds.length}` : ''),
+        html: (prs.length ? prs.map(prLines).join('') + '<div style="height:6px"></div>' : '') + (ds.length ? rows : `<div class="ln dim">${U.none}</div>`),
+        foot: `<span class="sp">${esc(when)}</span><button class="lnk" ${s.busy ? 'disabled' : ''} onclick="fcall('usb','check')">${esc(U.checkAgain)}</button>`,
+        wide: true,
+      };
+    },
+  },
   poke: { open(){ pet.poke(); return false; } },   // no view: she just reacts
   skin: {
     report(r){
@@ -250,6 +306,68 @@ const FEATURES = {
     },
   },
 };
+
+/* ---------------- USB devices ---------------- */
+const U_ = () => state.f.usb || {};
+const USB_ICON = {hub:'🔀', printer:'🖨', storage:'💾', network:'🌐', input:'⌨️', audio:'🎧', video:'📺', camera:'📷',
+  wireless:'📡', billboard:'🔌', vendor:'🔧', other:'🔧'};
+const fmtMB = b => b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(b / 1e6)) + ' MB';
+function linkList(links){
+  return (links || []).map(l => `<a title="${esc(l.url)}" onclick="api().open_url('${esc(l.url).replace(/'/g, '%27')}')">↗ ${esc(l.title || l.url)}</a>`).join('');
+}
+function badge(x){
+  const B = T().u.b, tip = T().u.tip[x.check] || '';
+  const up = (state.f.usb || {}).macos || {}, upd = ((up.updates || []).find(u => /^macos/i.test(u.title)) || {}).version;
+  const txt = x.check === 'apple_update' ? B.apple_update(upd || '') : x.check === 'maybe_newer' ? B.maybe_newer(x.hint) : B[x.check] || '';
+  const cls = x.check === 'apple_ok' || x.check === 'ok' ? 'ok' : x.check === 'apple_update' || x.check === 'maybe_newer' ? 'up' : '';
+  return txt ? `<span class="badge ${cls}" title="${esc(tip)}">${esc(txt)}</span>` : '';
+}
+function usbRow(d, s){
+  const U = T().u, sub = [d.vendor || '', U.kinds[d.kind] || '', d.speed].filter(Boolean).map(esc).join(' · ');
+  const drv = (d.drivers || []).map(x => `<div class="drv" title="${esc(x.bundle + (x.path ? '\n' + x.path : ''))}">
+      <span class="dn">${esc(x.name)}${x.version ? ' ' + esc(x.version) : ''}</span>${badge(x)}</div>
+      ${x.check === 'maybe_newer' || x.check === 'unknown' ? `<div class="links">${linkList(x.links)}</div>` : ''}`).join('')
+    || `<div class="drv dim">${esc(d.kind === 'printer' ? U.cups : U.noDriver)}</div>`;
+  return `<div class="ud"><span class="ic">${USB_ICON[d.kind] || '🔧'}</span><div class="mid">
+    <div class="nm" title="${esc(d.name)} (${esc(d.vid)}:${esc(d.pid)})">${esc(d.product_db && d.name.length < 4 ? d.product_db : d.name)}</div>
+    <div class="sub">${sub}</div>${drv}</div></div>`;
+}
+function prLines(p){
+  const P = T().u.pr, U = T().u, k = esc(p.key || ''), nm = esc(p.mdl || p.name || ''), dv = p.driver || {};
+  let l = '', acts = '';
+  const job = (((state.f || {}).usb || {}).air || {}).jobs?.[p.key];
+  if(p.st === 'configured'){
+    l = P.configured(nm); acts = `<button class="lnk" onclick="fcall('usb','open_printers')">${esc(U.airMore)} ›</button>`;
+  } else if(p.st === 'airprint' && job){
+    const J = T().ap.job;
+    l = P.airprint(nm) + `<div>${esc(job.st === 'working' ? J.working : job.st === 'done' ? J.done(job.queue || '') :
+      job.st === 'manual' ? J.manual : J.error((T().ap.err || {})[job.msg] || job.msg || ''))}</div>`;
+    if(job.st === 'error') acts = `<button class="lnk" onclick="fcall('usb','airprint','${k}')">${esc(U.retry)}</button>`;
+  } else if(p.st === 'airprint'){
+    l = P.airprint(nm); acts = `<button class="lnk" onclick="fcall('usb','airprint','${k}')">🖨 ${esc(U.air)}</button>
+      <button class="lnk" onclick="fcall('usb','open_printers')">${esc(U.airMore)} ›</button>`;
+  } else if(p.st === 'local'){
+    l = P[p.st](nm); acts = `<button class="lnk" onclick="fcall('usb','printer_settings')">${esc(U.add)} ›</button>`;
+  } else if(p.st === 'found'){
+    l = P.found(nm, esc(dv.title), esc(dv.date || ''), fmtMB(dv.size || 0));
+    acts = `<button class="lnk" onclick="fcall('usb','download','${k}')">⬇ ${esc(U.dl)}</button>`;
+  } else if(p.st === 'downloading'){
+    const pct = p.total ? Math.floor(100 * (p.done || 0) / p.total) : 0;
+    l = P.downloading(esc(dv.title), pct, fmtMB(p.total || dv.size || 0)) + `<div class="bar"><div style="width:${pct}%"></div></div>`;
+    acts = `<button class="lnk" onclick="fcall('usb','cancel_download')">${esc(U.cancel)}</button>`;
+  } else if(p.st === 'downloaded'){
+    l = P.downloaded(esc(dv.title));
+    acts = `<button class="lnk" onclick="fcall('usb','open_file','${k}')">${esc(U.install)}</button>
+      <button class="lnk" onclick="fcall('usb','reveal_downloads')">${esc(U.folder)}</button>
+      <button class="lnk" onclick="fcall('usb','printer_settings')">${esc(U.add)} ›</button>`;
+  } else if(p.st === 'none'){
+    l = P.none(nm) + linkList(p.links);
+  } else if(p.st === 'error'){
+    l = `<span class="warn">${esc(P.error(p.err || ''))}</span>`;
+    acts = `<button class="lnk" onclick="fcall('usb','download','${k}')">${esc(U.retry)}</button>`;
+  }
+  return l ? `<div class="ln prl">${l}${acts ? `<div class="acts">${acts}</div>` : ''}</div>` : '';
+}
 
 /* ---------------- system monitor charts (candlesticks) ---------------- */
 const fmtRate = b => b < 1024 ? Math.round(b) + ' B/s' : b < 1048576 ? (b/1024).toFixed(b < 10240 ? 1 : 0) + ' KB/s' : (b/1048576).toFixed(1) + ' MB/s';
@@ -396,7 +514,7 @@ function sizes(){
 function hoverSpots(n){
   // buttons on an arc over her head, leaning towards the free side (x from her left edge)
   const {W, H} = sizes(), r = H * .58, cx = W / 2, cy = H * .3, out = [];
-  const a0 = -172, a1 = n > 3 ? -40 : -76;
+  const a0 = -172, a1 = n > 3 ? -70 : -76;   // stay left of her head: the window has no room on her right
   for(let i = 0; i < n; i++){
     const a = (n === 1 ? (a0 + a1) / 2 : a0 + (a1 - a0) * i / (n - 1)) * Math.PI / 180;
     out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);

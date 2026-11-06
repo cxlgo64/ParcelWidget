@@ -4,6 +4,13 @@ Runs once at launch (with a report you confirm), then automatically every `every
 minutes between `start` and `end` (default 09:00-19:00 every 90 min). An automatic check
 only shows a report if something changed.
 
+Sleep: no automatic checks while the computer is asleep. When it wakes up she checks once,
+quietly (a report only if something changed) - unless the last check is still current
+(no scheduled time has passed since), then she does nothing.
+
+Network errors (e.g. Wi-Fi not back yet): an automatic check is retried quietly up to
+NET_RETRIES times, NET_RETRY_MIN minutes apart; only the last failure is reported.
+
 Memory: every full check saves its time and result (memory.json). At launch, if the last check
 is still current (no scheduled time has passed since), she shows that result instead of checking
 again; the report then has data["cached"] = the time of that check.
@@ -30,6 +37,21 @@ from . import Feature
 
 # browsers Playwright can download by itself; others must be installed by the user
 AUTO_INSTALL = {"chromium": "chromium", "firefox": "firefox", "webkit": "webkit"}
+
+NET_RETRIES = 3        # quiet retries of an automatic check that failed for lack of network
+NET_RETRY_MIN = 3
+WAKE_DELAY = 20        # seconds after waking up before checking: Wi-Fi needs a moment
+AUTO_KINDS = ("scheduled", "wake", "retry")   # automatic checks: a report only if something changed
+
+
+def _is_net_error(e):
+    """no network / DNS / timeouts - worth retrying, unlike a wrong password"""
+    import socket
+    if isinstance(e, (socket.gaierror, socket.timeout, TimeoutError, ConnectionError)):
+        return True
+    text = str(e).lower()
+    return any(w in text for w in ("nodename", "name or service", "network is unreachable", "timed out",
+                                   "connection reset", "connection refused", "connection aborted"))
 
 L = {
     "en": {"check": "Check Now", "checking": "Checking…", "show": "Show Packages", "add": "Add Tracking Number…",
@@ -64,6 +86,10 @@ class Parcels(Feature):
         self.last_run = None
         self.next_due = None
         self.mail_error = None
+        self.net_failed = False   # the last mail read failed for lack of network
+        self.net_tries = 0        # quiet retries used for the current failure
+        self.retry_due = False    # next_due is a retry, not a scheduled time
+        self.wake_at = None       # time.time() when to do the after-wake check
         self.installing = None
         self.refreshing = set()
         self._lock = threading.Lock()
@@ -116,29 +142,57 @@ class Parcels(Feature):
                 m += every
         return None
 
+    def sleep(self):
+        self.wake_at = None
+
+    def wake(self):
+        self.wake_at = time.time() + WAKE_DELAY
+
+    def current(self):
+        """the last check is still current: no scheduled time has passed since"""
+        if not self.last_run:
+            return False
+        due = self.next_slot(datetime.datetime.fromtimestamp(self.last_run))
+        return bool(due and due > datetime.datetime.now())
+
     def tick(self, now):
+        if self.busy:
+            return
+        if self.wake_at:
+            if now < self.wake_at:
+                return             # the after-wake check comes first
+            self.wake_at = None
+            if self.current():
+                self.next_due = self.next_slot(datetime.datetime.fromtimestamp(self.last_run))
+                log("wake: last check %s is still current, staying quiet (next at %s)" % (
+                    time.strftime("%H:%M", time.localtime(self.last_run)),
+                    self.next_due.strftime("%H:%M") if self.next_due else "-"))
+                return
+            self.run("wake")
+            return
         if self.next_due is None:
             self.next_due = self.next_slot(datetime.datetime.now())
-        if self.next_due and datetime.datetime.now() >= self.next_due and not self.busy:
+        if self.next_due and datetime.datetime.now() >= self.next_due:
+            kind = "retry" if self.retry_due else "scheduled"
             self.next_due = self.next_slot(datetime.datetime.now())
-            self.run("scheduled")
+            self.run(kind)
 
     # ---------- a full check, reported in her balloon ----------
     def run(self, kind):
-        """kind: startup | manual | scheduled"""
+        """kind: startup | manual | scheduled | wake | retry"""
         if not self._lock.acquire(blocking=False):
             return False
         app = self.app
         r = None
         try:
             self.busy = True
+            log("check (%s) started" % kind)
             before = {i["number"]: i for i in self.db.active()}
             # an automatic check stays hidden unless it finds something
             r = app.reports.add(self.id, kind, {"mail": None, "track": None, "sum": None},
-                                hidden=(kind == "scheduled"))
+                                hidden=(kind in AUTO_KINDS))
             new_nums = self._scan_mail(r)
             checked = self._track(r=r)
-            self.last_run = time.time()
             self._finish(r, before, new_nums, checked)
         except Exception as e:
             log(traceback.format_exc())
@@ -148,6 +202,11 @@ class Parcels(Feature):
         finally:
             self.busy = False
             self.next_due = self.next_slot(datetime.datetime.now())
+            self.retry_due = False
+            if self.net_failed and kind in AUTO_KINDS and self.net_tries <= NET_RETRIES:
+                retry = datetime.datetime.now() + datetime.timedelta(minutes=NET_RETRY_MIN)
+                if not self.next_due or retry < self.next_due:
+                    self.next_due, self.retry_due = retry, True
             self._lock.release()
             app.push()
         return True
@@ -176,10 +235,28 @@ class Parcels(Feature):
         mail = r["data"].get("mail") or {}
         changed = bool(s["new"] or s["delivered"] or s["moved"] or s["errors"]) or mail.get("st") == "error"
         self.app.reports.set(r, "sum", s)
-        # remember when and what, so a restart soon after doesn't check again
-        save_memory(self.id, {"ts": time.time(), "kind": r["kind"],
-                              "data": {k: r["data"].get(k) for k in ("mail", "track", "sum")}})
-        if r["kind"] == "scheduled" and not changed:
+        net = mail.get("st") == "error" and self.net_failed
+        auto = r["kind"] in AUTO_KINDS
+        if not net:
+            # remember when and what, so a restart (or wake) soon after doesn't check again;
+            # a check that couldn't reach the network isn't a result worth remembering
+            self.last_run = time.time()
+            save_memory(self.id, {"ts": self.last_run, "kind": r["kind"],
+                                  "data": {k: r["data"].get(k) for k in ("mail", "track", "sum")}})
+        if net and auto:
+            if r["kind"] != "retry":
+                self.net_tries = 0            # a new series of retries
+            self.net_tries += 1
+            if self.net_tries <= NET_RETRIES:
+                log("no network: retry %d/%d in %d min" % (self.net_tries, NET_RETRIES, NET_RETRY_MIN))
+                self.app.reports.drop(r)      # quiet: try again soon
+                return
+            log("no network after %d retries: giving up until the next scheduled check" % NET_RETRIES)
+        elif not net:
+            self.net_tries = 0
+        log("check (%s) done: %d new, %d delivered, %d moved, %d errors, %d looked up" % (
+            r["kind"], len(s["new"]), len(s["delivered"]), len(s["moved"]), len(s["errors"]), s["checked"]))
+        if auto and not changed:
             self.app.reports.drop(r)          # nothing new: stay quiet
         else:
             self.app.reports.finish(r, hidden=False)
@@ -201,8 +278,10 @@ class Parcels(Feature):
         try:
             items = scan_gmail(addr, pw, days=int(c.get("scan_days", 14)), log=log, progress=progress)
             self.mail_error = None
+            self.net_failed = False
         except Exception as e:
             self.mail_error = str(e)[:160]
+            self.net_failed = _is_net_error(e)
             log("gmail error: %r" % e)
             reports.set(r, "mail", {"st": "error", "err": self.mail_error})
             return []
@@ -254,7 +333,7 @@ class Parcels(Feature):
                 self.db.update_status(num, res["status"], res["location"], res["event_time"], res["delivered"])
             self.app.push_soon()
 
-        t.track_many(nums, on_result, should_stop=lambda: self.app.closing, on_start=on_start)
+        t.track_many(nums, on_result, should_stop=lambda: self.app.closing or self.app.asleep, on_start=on_start)
         if r:
             reports.set(r, "track", {"st": "done", "n": len(done), "total": len(nums)})
         if missing and browser in AUTO_INSTALL:
