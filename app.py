@@ -18,7 +18,12 @@ import webview
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from core import (APP_DIR, IS_MAC, LOG_PATH, SIZE_PRESETS, SKINS_DIR, UI_DIR, later, list_skins, load_config,  # noqa: E402,F401
+if __name__ == "__main__":
+    # one already open? ask whether to go to it or open another copy (instance.py)
+    import instance
+    instance.choose()
+
+from core import (APP_DIR, IS_MAC, LOG_PATH, PROFILE, SIZE_PRESETS, SKINS_DIR, UI_DIR, later, list_skins, load_config,  # noqa: E402,F401
                   log, preset, save_config, trim_log)
 from features import make_features  # noqa: E402
 from reports import Reports  # noqa: E402
@@ -27,6 +32,9 @@ from reports import Reports  # noqa: E402
 class App:
     def __init__(self):
         self.cfg = load_config()
+        import vault
+        vault.ASK = bool(self.cfg.get("touch_id", True))
+        vault.LANG = self.cfg.get("lang", "en")
         self.window = None            # the character
         self.settings_window = None   # the settings popup, while open
         self.menubar = None           # menu bar icon (macOS), see menubar.py
@@ -186,6 +194,8 @@ class Api:
         return {
             "lang": c.get("lang", "en"),
             "on_top": bool(c.get("always_on_top")),
+            "touch_id": bool(c.get("touch_id", True)) if IS_MAC else None,
+            "unlocked": _vault().is_unlocked(),
             "size_preset": str(c.get("size_preset", "14")),
             "zoom": p["zoom"], "max_h": p["h"], "base_w": p["w"],
             "presets": [{"key": k, "label": v["label"]} for k, v in SIZE_PRESETS.items()],
@@ -229,9 +239,22 @@ class Api:
 
     def set_lang(self, lang):
         self.a.cfg["lang"] = "zh" if lang == "zh" else "en"
+        _vault().LANG = self.a.cfg["lang"]
         save_config(self.a.cfg)
         self.a.push()
         return self.a.cfg["lang"]
+
+    def set_touch_id(self, value):
+        """ask for Touch ID before using saved passwords (vault.py)"""
+        c = self.a.cfg
+        c["touch_id"] = bool(value)
+        save_config(c)
+        vault = _vault()
+        vault.ASK = c["touch_id"]
+        if c["touch_id"]:
+            vault.lock()       # from now on: ask before the next use
+        self.a.push()
+        return c["touch_id"]
 
     def set_on_top(self, value):
         c = self.a.cfg
@@ -291,10 +314,10 @@ class Api:
 
     # ---------- custom skins (generated with an image API, see skinmaker/) ----------
     def get_skin_gen(self):
-        from skinmaker import DEFAULT_PROVIDER, PROVIDERS, get_key
+        from skinmaker import DEFAULT_PROVIDER, PROVIDERS, has_key
         g = self.a.cfg.get("skin_gen") or {}
         return {
-            "providers": [dict(p.info(), has_key=bool(get_key(p.id))) for p in PROVIDERS.values()],
+            "providers": [dict(p.info(), has_key=has_key(p.id)) for p in PROVIDERS.values()],
             "provider": g.get("provider") or DEFAULT_PROVIDER,
             "models": g.get("models") or {},
             "base_urls": g.get("base_urls") or {},
@@ -515,14 +538,34 @@ class Api:
         return self.a.quit()
 
 
+def _vault():
+    import vault
+    return vault
+
+
+def instance_listen(app):
+    """another launch chose "Go to it": come to the front"""
+    import instance
+
+    def show():
+        import menubar
+        menubar.activate()
+        app.show_window()
+        if app.settings_window:
+            later(app.settings_window.show, 0)
+    instance.listen(show)
+
+
 def main():
     trim_log()
+    if PROFILE > 1:
+        log("copy %d" % PROFILE)
     app = App()
     api = Api(app)
     app.api = api
     p = preset(app.cfg)
     win = webview.create_window(
-        "Parcel Widget",
+        "Parcel Widget" + (" %d" % PROFILE if PROFILE > 1 else ""),
         os.path.join(UI_DIR, "index.html"),
         js_api=api,
         width=int(p["w"] * 0.6),
@@ -554,6 +597,7 @@ def main():
             def started():
                 AppHelper.callAfter(app.menubar.install)
                 AppHelper.callAfter(lambda: power.watch(app.on_sleep, app.on_wake))
+                AppHelper.callAfter(lambda: instance_listen(app))
                 app.push()
         except Exception as ex:
             app.menubar = None

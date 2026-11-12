@@ -138,7 +138,9 @@ class MenuBar:
     # ---------- count next to the icon ----------
     def _show_count(self):
         n, d = self._count
-        self.item.button().setTitle_((" %d" % n if n else "") + (" ✓%d" % d if d else ""))
+        from core import PROFILE
+        tag = " #%d" % PROFILE if PROFILE > 1 else ""     # which copy (instance.py)
+        self.item.button().setTitle_(tag + (" %d" % n if n else "") + (" ✓%d" % d if d else ""))
 
     def set_count(self, n, delivered):
         """Thread-safe."""

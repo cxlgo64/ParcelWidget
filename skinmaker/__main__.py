@@ -7,7 +7,7 @@
   .venv/bin/python -m skinmaker assemble <skin-id>                    # rebuild sheet from _work/ (after hand edits)
   .venv/bin/python -m skinmaker preview <skin-id>                     # labelled PNG for checking by eye
 
-API keys come from the macOS Keychain (saved from the widget) or environment variables
+API keys come from the widget's encrypted vault (saved from the widget; may ask for Touch ID) or environment variables
 (OPENAI_API_KEY, GEMINI_API_KEY, DASHSCOPE_API_KEY, MINIMAX_API_KEY, TENCENTCLOUD_SECRET_ID +
 TENCENTCLOUD_SECRET_KEY, STABILITY_API_KEY, REPLICATE_API_TOKEN, FAL_KEY), or --key.
 """
@@ -35,7 +35,7 @@ def main(argv=None):
         p.add_argument("--provider", choices=list(PROVIDERS))
         p.add_argument("--model", help="override the default model")
         p.add_argument("--base-url", help="override the API endpoint")
-        p.add_argument("--key", help="API key (default: Keychain, then environment)")
+        p.add_argument("--key", help="API key (default: the widget's saved key, then environment)")
 
     m = sub.add_parser("make", help="generate a new skin")
     m.add_argument("--name", required=True)

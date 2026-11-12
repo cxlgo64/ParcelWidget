@@ -9,10 +9,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 IS_MAC = sys.platform == "darwin"
 IS_WIN = sys.platform == "win32"
 
-if IS_WIN:
-    APP_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "ParcelWidget")
-else:
-    APP_DIR = os.path.expanduser("~/Library/Application Support/ParcelWidget")
+import instance  # noqa: E402
+
+# each copy of the widget (like an account) has its own data folder: see instance.py
+PROFILE = instance.current()
+APP_DIR = instance.profile_dir(PROFILE)
 os.makedirs(APP_DIR, exist_ok=True)
 CONFIG_PATH = os.path.join(APP_DIR, "config.json")
 LOG_PATH = os.path.join(APP_DIR, "widget.log")
@@ -28,7 +29,9 @@ def _ui_dir():
     if not FROZEN:
         return src
     import shutil
-    dst = os.path.join(APP_DIR, "ui")
+    dst = os.path.join(instance.BASE, "ui")     # shared by all copies, custom skins too
+    if os.environ.get("PARCELWIDGET_OTHERS") and os.path.exists(os.path.join(dst, "index.html")):
+        return dst                              # another copy is using it: don't refresh under it
     os.makedirs(os.path.join(dst, "skins"), exist_ok=True)
     for name in os.listdir(src):
         s, d = os.path.join(src, name), os.path.join(dst, name)
@@ -168,17 +171,22 @@ def save_memory(key, value):
         os.replace(tmp, MEMORY_PATH)
 
 
-def get_password(address):
-    try:
-        import keyring
-        return keyring.get_password(KEYRING_SERVICE, address) or ""
-    except Exception:
-        return ""
+def get_password(address, force=False):
+    """the Gmail app password, from the encrypted vault (vault.py): may ask for Touch ID first and
+    raise vault.Locked. force: ask even right after a cancelled Touch ID."""
+    import vault
+    return vault.get("gmail:" + address, keychain=(KEYRING_SERVICE, address), force=force) if address else ""
+
+
+def has_password(address):
+    """is a password saved for this address? Never asks."""
+    import vault
+    return bool(address) and vault.has("gmail:" + address, keychain=(KEYRING_SERVICE, address))
 
 
 def set_password(address, pw):
-    import keyring  # macOS Keychain / Windows Credential Manager, never a plain file
-    keyring.set_password(KEYRING_SERVICE, address, pw)
+    import vault  # encrypted, never a plain file
+    vault.set("gmail:" + address, pw)
 
 
 def later(fn, delay=0.05):

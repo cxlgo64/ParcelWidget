@@ -103,6 +103,9 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
   <div class="seg" id="sizeSeg"></div>
   <div class="hint" data-t="sizeHint"></div>
   <div class="chk"><input type="checkbox" id="onTop" onchange="setOnTop(this.checked)"><span data-t="onTop"></span></div>
+  <div class="chk" id="touchRow"><input type="checkbox" id="touchId" onchange="setTouchId(this.checked)"><span data-t="touchId"></span>
+    <span class="hint" id="touchSt" style="margin:0 0 0 6px"></span></div>
+  <div class="hint" id="touchHint" data-t="touchIdHint"></div>
   <div class="section" data-t="skin"></div>
   <div class="skins" id="skins"></div>
   <div class="row" style="margin-top:10px"><span class="hint" style="margin:0" data-t="side"></span><div class="seg" id="sideSeg"></div></div>
@@ -132,6 +135,45 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
   <div class="hint" data-t="browserHint"></div>
   <div class="chk"><input type="checkbox" id="p_headless"><span data-t="headless"></span></div>
   <div style="margin-top:16px"><button class="btn" onclick="saveParcels()" data-t="save"></button></div>
+</section>
+
+<!-- Mail: a first look at the inboxes (Apple Mail, Outlook through Microsoft) -->
+<section class="tab" id="tab-mail">
+  <div class="hint" style="margin-top:0" data-t="mlS.intro"></div>
+  <label class="chk" style="color:var(--text)"><input type="checkbox" id="m_apple" onchange="saveMail()"><span data-t="mlS.apple"></span></label>
+  <div class="hint" data-t="mlS.appleHint"></div>
+  <div class="row" style="margin-top:10px"><span data-t="mlS.every"></span><select id="m_every" style="width:80px" onchange="saveMail()"></select><span data-t="mlS.minutes"></span>
+    <span style="width:14px"></span><span data-t="mlS.hours"></span><select id="m_hours" style="width:80px" onchange="saveMail()"></select><span data-t="mlS.hoursUnit"></span></div>
+  <label class="chk" style="color:var(--text)"><input type="checkbox" id="m_notify" onchange="saveMail()"><span data-t="mlS.notify"></span></label>
+  <div class="hint" data-t="mlS.notifyHint"></div>
+
+  <div class="section" data-t="mlS.rules"></div>
+  <label data-t="mlS.vip"></label><textarea id="m_vip" onchange="saveMail()" placeholder="boss@company.com&#10;school.edu&#10;invoice"></textarea>
+  <label data-t="mlS.mute"></label><textarea id="m_mute" onchange="saveMail()" placeholder="glassdoor.com&#10;newsletter"></textarea>
+
+  <div class="section" data-t="mlS.ms"></div>
+  <div class="hint" style="margin-top:0" data-t="mlS.msIntro"></div>
+  <label data-t="mlS.msClient"></label><input type="text" id="m_client" placeholder="00000000-0000-0000-0000-000000000000" onchange="saveMail()" spellcheck="false">
+  <label data-t="mlS.msTenant"></label><select id="m_tenant" onchange="saveMail()"></select>
+  <div class="hint" data-t="mlS.msHow"></div>
+  <div class="row" style="margin-top:8px"><button class="btn ghost" onclick="api().open_url('https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade')" data-t="mlS.msPortal"></button></div>
+  <div class="row" style="margin-top:12px"><span class="grow" id="m_status"></span>
+    <button class="btn ghost" id="m_signout" onclick="mlSignOut()" data-t="mlS.signOut"></button></div>
+</section>
+
+<!-- Claude Code: finished / needs you / answer in her balloon -->
+<section class="tab" id="tab-claude">
+  <div class="hint" style="margin-top:0" data-t="clS.intro"></div>
+  <label class="chk" style="color:var(--text);margin-top:12px"><input type="checkbox" id="c_on" onchange="saveClaude(true)"><b data-t="clS.enable"></b></label>
+  <div class="hint" id="c_hint"></div>
+  <div class="hint" id="c_st" style="color:var(--text)"></div>
+  <div id="c_opts">
+    <label class="chk" style="color:var(--text)"><input type="checkbox" id="c_done" onchange="saveClaude()"><span data-t="clS.done"></span></label>
+    <label class="chk" style="color:var(--text)"><input type="checkbox" id="c_perm" onchange="saveClaude()"><span data-t="clS.permissions"></span></label>
+    <label class="chk" style="color:var(--text)"><input type="checkbox" id="c_q" onchange="saveClaude()"><span data-t="clS.questions"></span></label>
+    <div class="row" style="margin-top:8px"><span data-t="clS.wait"></span><select id="c_wait" style="width:80px" onchange="saveClaude()"></select><span data-t="clS.seconds"></span></div>
+  </div>
+  <div class="hint" style="margin-top:14px" data-t="clS.privacy"></div>
 </section>
 
 <!-- System monitor -->
@@ -216,7 +258,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
 <script>
 /* The settings window. Tabs: General (the widget), one per feature, and Custom skin.
    Opened from the menus: settings.html#general | #parcels | #parcels:add | #sysmon | #skin | #log */
-const TABS = ['general', 'parcels', 'sysmon', 'usb', 'printers', 'skin', 'log'];
+const TABS = ['general', 'parcels', 'mail', 'claude', 'sysmon', 'usb', 'printers', 'skin', 'log'];
 let tab = 'general', state = {f: {}}, settings = null;
 
 function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1500); }
@@ -243,7 +285,7 @@ async function load(){
   if(state.lang !== lang){ lang = state.lang; applyStaticText(); renderNav(); settings = null; }
   document.title = T().title;
   if(!settings){ settings = await api().get_settings(); fillForms(); }
-  fillGeneral(); fillPackages(); fillSysmon(); fillUsb(); fillPrinters();
+  fillGeneral(); fillPackages(); fillMail(); fillClaude(); fillSysmon(); fillUsb(); fillPrinters();
   if(tab === 'skin') renderSkinJob(state.skin_job);
 }
 window.onBackendUpdate = () => load();
@@ -254,6 +296,9 @@ async function fillGeneral(){
   seg('langSeg', [{key:'en', label:'English'}, {key:'zh', label:'中文'}], lang, 'pickLang');
   seg('sizeSeg', state.presets.map(p => ({key: p.key, label: p.key === 'ext' ? (lang === 'zh' ? '外接屏' : 'External') : p.label})), state.size_preset, 'pickSize');
   $('onTop').checked = !!state.on_top;
+  $('touchRow').style.display = $('touchHint').style.display = state.touch_id === null ? 'none' : '';
+  $('touchId').checked = !!state.touch_id;
+  $('touchSt').textContent = state.touch_id ? (state.unlocked ? L.touchIdOn : L.touchIdOff) : '';
   seg('sideSeg', [{key:'left', label:L.sideLeft}, {key:'right', label:L.sideRight}], state.skin_side, 'pickSide');
   const skins = await api().get_skins(), cur = state.skin ? state.skin.id : '';
   $('skins').innerHTML = skins.map(s => {
@@ -266,6 +311,7 @@ async function fillGeneral(){
 async function pickLang(k){ await api().set_lang(k); load(); }
 async function pickSize(k){ await api().set_size(k); load(); }
 async function setOnTop(v){ await api().set_on_top(v); }
+async function setTouchId(v){ await api().set_touch_id(v); load(); }
 async function pickSkin(id){ await api().set_skin(id, null); load(); }
 async function pickSide(s){ await api().set_skin(null, s); load(); }
 async function deleteSkin(id, name){ if(confirm(T().deleteConfirm(name))){ await api().delete_skin(id); load(); } }
@@ -314,6 +360,46 @@ async function saveParcels(){
   });
   settings = null; await load(); toast(T().saved);
 }
+
+/* ---------------- Claude Code ---------------- */
+function fillClaude(){
+  const s = settings && settings.claude, S = T().clS, st = (state.f || {}).claude || {};
+  if(!s) return;
+  $('c_on').checked = !!s.enabled;
+  $('c_hint').textContent = S.enableHint(s.settings_path);
+  $('c_st').textContent = s.enabled ? (st.listening ? S.st.on : S.st.notListening) : S.st.off;
+  $('c_opts').style.opacity = s.enabled ? 1 : .5;
+  $('c_done').checked = !!s.done; $('c_perm').checked = !!s.permissions; $('c_q').checked = !!s.questions;
+  $('c_wait').innerHTML = s.waits.map(v => `<option value="${v}" ${v === s.wait ? 'selected' : ''}>${v}</option>`).join('');
+}
+async function saveClaude(toggle){
+  const v = {done: $('c_done').checked, permissions: $('c_perm').checked, questions: $('c_q').checked, wait: +$('c_wait').value};
+  if(toggle) v.enabled = $('c_on').checked;
+  await api().save_settings('claude', v);
+  settings = null; await load(); toast(T().saved);
+}
+
+/* ---------------- Mail ---------------- */
+function fillMail(){
+  const s = settings && settings.mail, S = T().mlS, st = (state.f || {}).mail || {}, ms = st.ms || {};
+  if(!s) return;
+  const act = document.activeElement;
+  $('m_apple').checked = !!s.apple; $('m_notify').checked = !!s.notify;
+  $('m_every').innerHTML = s.everys.map(v => `<option value="${v}" ${v === s.every ? 'selected' : ''}>${v}</option>`).join('');
+  $('m_hours').innerHTML = s.hourss.map(v => `<option value="${v}" ${v === s.hours ? 'selected' : ''}>${v}</option>`).join('');
+  $('m_tenant').innerHTML = Object.entries(S.tenants).map(([k, v]) => `<option value="${k}" ${k === s.ms_tenant ? 'selected' : ''}>${esc(v)}</option>`).join('');
+  for(const [id, k] of [['m_vip', 'vip'], ['m_mute', 'mute'], ['m_client', 'ms_client_id']]) if(act !== $(id)) $(id).value = s[k] || '';
+  const acct = ms.account || s.ms_account;
+  $('m_status').textContent = acct ? S.signedIn(acct) : S.notSigned;
+  $('m_signout').style.display = acct ? '' : 'none';
+}
+async function saveMail(){
+  Object.assign(settings.mail, {apple: $('m_apple').checked, notify: $('m_notify').checked, every: +$('m_every').value,
+    hours: +$('m_hours').value, vip: $('m_vip').value, mute: $('m_mute').value,
+    ms_client_id: $('m_client').value.trim(), ms_tenant: $('m_tenant').value});
+  await api().save_settings('mail', settings.mail); toast(T().saved);
+}
+async function mlSignOut(){ await api().feature('mail', 'sign_out'); settings = null; load(); }
 
 /* ---------------- System monitor ---------------- */
 function fillSysmon(){

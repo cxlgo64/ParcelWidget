@@ -379,12 +379,25 @@ ENV_KEYS = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY", "qwen": "DAS
             "replicate": "REPLICATE_API_TOKEN", "fal": "FAL_KEY"}
 
 
-def get_key(pid):
-    """Keychain first (set from the widget), then the environment variable."""
+def has_key(pid):
+    """a key is saved in the widget, or set in the environment (never asks for Touch ID)"""
     import os
     try:
-        import keyring
-        k = keyring.get_password(KEYRING_SERVICE, pid)
+        import vault
+        if vault.has("image:" + pid, keychain=(KEYRING_SERVICE, pid)):
+            return True
+    except Exception:
+        pass
+    return bool(os.environ.get(ENV_KEYS.get(pid, "")) or (pid == "hunyuan" and os.environ.get("TENCENTCLOUD_SECRET_ID")))
+
+
+def get_key(pid):
+    """The widget's encrypted vault first (set from the widget; may ask for Touch ID), then the
+    environment variable."""
+    import os
+    try:
+        import vault
+        k = vault.get("image:" + pid, keychain=(KEYRING_SERVICE, pid), force=True)
         if k:
             return k
     except Exception:
@@ -395,5 +408,5 @@ def get_key(pid):
 
 
 def set_key(pid, key):
-    import keyring  # macOS Keychain, never a plain file
-    keyring.set_password(KEYRING_SERVICE, pid, key)
+    import vault  # encrypted, never a plain file
+    vault.set("image:" + pid, key)

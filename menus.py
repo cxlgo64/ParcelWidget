@@ -25,6 +25,10 @@ def spec(app):
     lang = app.cfg.get("lang", "en")
     T = L.get(lang, L["en"])
     out = []
+    from core import PROFILE
+    import instance
+    if PROFILE > 1 or len(instance.profiles()) > 1:
+        out += [{"title": instance.T[lang if lang == "zh" else "en"]["name"](PROFILE), "info": True}, {"sep": True}]
     for f in app.features:
         title = "%s  %s" % (f.icon, f.name_zh if lang == "zh" else f.name)
         if not f.info().get("hover", True) and f.menu(lang) is None:

@@ -27,6 +27,20 @@ and a CPU / memory / network monitor drawn as candlestick charts.
   reads the latest event from parcelsapp.com with a real browser (Playwright); delivered ones get a **✓ Got it** button.
   Add a number right in her balloon (hover → 📦, or menu → Parcels → Add Tracking Number…);
   archived ones, the schedule, Gmail and browser are in Settings → Parcels
+- ✉️ **Mail**: a first look at your inboxes, sorted into important (replies, real people, colleagues, codes,
+  "action needed"), the rest, and what you can skip (job alerts, ads, newsletters, no-reply mail), plus your own
+  "always important / always skip" rules. Apple Mail is read through the Mail app; **Outlook** (the New Outlook
+  shares nothing with other apps) is read from Microsoft after an optional sign-in with a code, shown in her
+  balloon. Read only: nothing is moved, deleted or marked read. Nothing starts until you open ✉️ Mail once;
+  after that she looks every 30 min and only speaks up about new important unread mail. The Microsoft sign-in
+  never pops up by itself: when it's needed (or has to be renewed) she waits until you open ✉️ Mail.
+  Outlook needs a Microsoft app ID once (Settings → ✉️ Mail explains how)
+- 🤖 **Claude Code** (Settings → 🤖 Claude, off until you turn it on): when Claude finishes she tells you how it
+  went (the project and Claude's summary); when Claude needs you she says so. Permission requests (run a
+  command, edit a file, ...) get Allow / Always allow / Deny buttons in her balloon, and Claude's multiple-choice
+  questions can be answered there too. "In Claude", or no answer in time, leaves it to Claude's own window. It
+  works through Claude Code hooks: turning it on adds `claude_hook.py` to `~/.claude/settings.json` (a backup of
+  the file is kept), turning it off removes it; the hook does nothing while the widget isn't running
 - 📊 **System monitor**: CPU, memory, download and upload as candlestick charts (5 s – 1 min per candle,
   red-up or green-up colors)
 - 🔌 **USB**: lists what's plugged in over USB and the driver running each device (bundle, version, kext or
@@ -41,6 +55,9 @@ and a CPU / memory / network monitor drawn as candlestick charts.
   address or found nearby, USB printers too. The same printer is often in the list two or three times (a generic
   driver, an entry gone offline); she keeps the AirPrint one and removes the others when you confirm. macOS may
   ask for your password to change the printer list.
+- **More than one copy**, like accounts: opening the app while it's already open asks whether to go to the open
+  one or open another. Each copy has its own settings, Gmail and parcels (copy 2, 3, ... live in
+  `Profiles/<n>` in the data folder; the menu bar shows `#2`, ...). With none open, the one used last starts.
 - 👉 **Poke**: a random move and a line
 - Animated **skins**, and **custom skins** an image AI draws from your description or picture
 - Screen-size presets, keep on top, English / 中文, lives in the **menu bar** (no Dock icon)
@@ -107,7 +124,7 @@ Animations the widget uses: `idle`, `blink`, `fidget`, `walk_left`, `walk_right`
 
 ### Custom skins (image AI)
 Settings → **🎨 Custom skin** (or ＋ next to the characters in Settings → General): give a name, a description
-and optionally a reference picture, pick an image AI and enter its API key (stored in the macOS Keychain).
+and optionally a reference picture, pick an image AI and enter its API key (saved encrypted, see below).
 About 10 image requests make a base character plus one row of poses per animation; the widget removes the
 green background, cuts and aligns the poses and switches to the new skin.
 
@@ -126,8 +143,18 @@ Model names and endpoints can be changed under "Advanced". From the command line
 With Claude Code, the `make-skin` skill in `.claude/skills/` knows how to make, check, fix and tune skins.
 
 ## Privacy
-- Your Gmail app password is stored in the **macOS Keychain**, never in a file. macOS may ask once
-  whether Parcel Widget may read it (choose **Always Allow**); a new version of the app asks once again.
+- Your Gmail app password and image AI keys are saved **encrypted** in `secrets.vault` (AES-256 + HMAC,
+  with a key tied to this Mac's hardware, so the file is useless anywhere else). She asks for **Touch ID**
+  (or your Mac password) once per launch before using them; turn that off in Settings → General.
+  The fingerprint is a lock inside the widget: a program running as you on this Mac could still
+  decrypt the file. Older versions kept them in the Keychain; they're moved over on first use (the Keychain
+  may ask one last time) and the Keychain items are left as they were.
+- Mail: subjects, senders and previews stay in memory; on disk she keeps only hashed message ids (so old mail
+  isn't announced again). Sorting is done on the Mac with simple rules, nothing is sent anywhere. The Microsoft
+  sign-in asks only for `Mail.Read` and `User.Read` (read mail, your address); it's kept as a refresh token in
+  the encrypted vault. Settings → ✉️ Mail → Sign out removes it.
+- Claude Code: the hook talks only to the widget, over a socket in the data folder that only you can open.
+  Claude's summaries and questions stay in her balloon until confirmed; nothing is saved or sent anywhere.
 - Shipments, settings and logs live in `~/Library/Application Support/ParcelWidget/`, outside this repo.
 - The USB check sends vendor and product names (not serial numbers) to DuckDuckGo to search for drivers,
   and downloads driver lists and printer drivers only from Apple's servers (and linux-usb.org's ID list).
@@ -153,10 +180,14 @@ Many Amazon emails only contain a "Track package" button with no number. Add tho
 | File | What it does |
 |---|---|
 | `app.py` | Windows, scheduler loop, JS ↔ Python API |
-| `core.py` | Paths, config, log, Keychain, skins, size presets |
+| `core.py` | Paths, config, log, passwords, skins, size presets |
+| `vault.py` | Saved passwords and API keys: encrypted file, unlocked with Touch ID |
 | `power.py` | Sleep / wake of the computer (macOS) |
-| `features/` | The character's jobs: `parcels.py`, `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
+| `mailread.py` | Reading the inbox: Apple Mail (JavaScript for Automation), Outlook (Microsoft Graph, device code sign-in), the first sort |
+| `claude_hook.py` | Claude Code hook: hands Claude's events to her over a local socket, returns your answer |
+| `features/` | The character's jobs: `parcels.py`, `mail.py`, `claude.py`, `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
 | `usbscan.py` | USB devices, their drivers and the printers (macOS: ioreg, kmutil, CUPS) |
+| `instance.py` | Which copy this is: one already open → go to it or open another; each copy's data folder |
 | `airprint.py` | The printer list grouped by printer, one-click AirPrint, duplicates (macOS: CUPS lpadmin, ipptool) |
 | `driverinfo.py` | Online lookups for the USB check: USB IDs, Software Update, web search, Apple's printer drivers |
 | `reports.py` | Reports shown in her balloon until confirmed |

@@ -28,7 +28,7 @@ import threading
 import time
 import traceback
 
-from core import APP_DIR, get_password, load_memory, log, save_memory, set_password
+from core import APP_DIR, get_password, has_password, load_memory, log, save_memory, set_password
 from db import DB
 from tracker import BROWSERS, DEFAULT_BROWSER
 from tracking_parser import guess_carrier
@@ -94,15 +94,18 @@ class Parcels(Feature):
         self.refreshing = set()
         self._lock = threading.Lock()
         self._track_lock = threading.Lock()
-        self._pw = {}      # Gmail address -> app password, read from the Keychain once
+        self._pw = {}      # Gmail address -> app password, read from the vault once
 
-    def password(self, addr):
-        """The Keychain is read once per address: every read of another program's item can make
-        macOS ask for permission, and the pages ask for the state many times a minute."""
+    def password(self, addr, force=False):
+        """Read once per address: the first read may ask for Touch ID (vault.py; raises
+        vault.Locked if cancelled). force: ask again even right after a cancel."""
         if not addr:
             return ""
         if addr not in self._pw:
-            self._pw[addr] = get_password(addr)
+            pw = get_password(addr, force=force)
+            if pw:
+                self._pw[addr] = pw
+            return pw
         return self._pw[addr]
 
     # ---------- schedule ----------
@@ -265,7 +268,14 @@ class Parcels(Feature):
         """-> tracking numbers that are new to the widget"""
         reports, c = self.app.reports, self.cfg
         addr = c.get("gmail_address")
-        pw = self.password(addr)
+        import vault
+        try:
+            pw = self.password(addr, force=r["kind"] not in AUTO_KINDS)
+        except vault.Locked:
+            log("gmail: skipped, saved passwords are locked")
+            self.mail_error = "locked"
+            reports.set(r, "mail", {"st": "error", "err": "locked"})
+            return []
         if not addr or not pw:
             reports.set(r, "mail", {"st": "off"})
             return []
@@ -416,7 +426,7 @@ class Parcels(Feature):
     # ---------- state, menu, settings ----------
     def configured(self):
         a = self.cfg.get("gmail_address")
-        return bool(self.password(a))
+        return bool(a) and (a in self._pw or has_password(a))
 
     def state(self):
         items = self.db.active()

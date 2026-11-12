@@ -62,6 +62,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 .okbtn{border:2px solid var(--frame);background:var(--frame);color:#fff;font-weight:700;border-radius:14px;padding:3px 14px;
   font-size:12.5px;cursor:pointer;box-shadow:2px 2px 0 #2f80ed33}
 .okbtn:hover{background:#1f6fdc}
+.okbtn.ghost{background:#fff;color:var(--frame);box-shadow:none}
+.okbtn.ghost:hover{background:#e8f1fe}
 .okbtn:disabled{background:var(--chip);color:var(--muted);border-color:#bbb;box-shadow:none;cursor:default}
 .lnk{border:0;background:none;color:var(--accent);font-size:11.5px;cursor:pointer;padding:0}
 .lnk:disabled{color:var(--muted);cursor:default}
@@ -114,6 +116,41 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 .bar{height:5px;border-radius:3px;background:var(--chip);overflow:hidden;margin-top:4px}
 .bar>div{height:100%;background:var(--frame)}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* Claude */
+.cltext{white-space:pre-wrap;max-height:170px;overflow-y:auto;font-size:12.5px;margin:3px 0}
+.clproj{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:8px;background:var(--chip);color:var(--muted);margin-bottom:3px}
+.clcode{font:11px ui-monospace,Menlo,Consolas,monospace;background:#f4f6fa;border-radius:6px;padding:5px 7px;margin:4px 0;
+  white-space:pre-wrap;word-break:break-all;max-height:120px;overflow-y:auto}
+.clbtns{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.clopt{border:1.5px solid var(--frame);background:#fff;color:var(--ink);border-radius:12px;padding:3px 10px;font-size:12px;cursor:pointer;text-align:left}
+.clopt:hover{background:#e8f1fe}
+.clopt.on{background:var(--frame);color:#fff}
+.clopt.go{background:var(--frame);color:#fff;font-weight:700}
+.clopt.no{border-color:#d9534f;color:#c0392b}
+.clq{margin-top:6px}
+.clq .hd{font-size:10.5px;font-weight:700;color:var(--muted)}
+/* mail */
+.ml{display:flex;gap:6px;align-items:flex-start;padding:5px 2px;border-top:1px dashed #d6e4f7;cursor:pointer;border-radius:6px}
+.ml:first-child{border-top:0}
+.ml:hover{background:#f2f7fe}
+.ml .mid{flex:1;min-width:0}
+.ml .fr{display:flex;gap:5px;font-size:11px;color:var(--muted);white-space:nowrap}
+.ml .fr b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.ml .fr .src{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 100 auto}
+.ml .fr .tm{margin-left:auto;flex:none}
+.ml .sj{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml.unread .sj{font-weight:700}
+.ml.unread .fr b::before{content:'● ';color:var(--accent);font-size:9px}
+.ml .pv{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml .why{flex:none;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:var(--chip);color:var(--muted);margin-top:2px}
+.ml.important .why{background:#fff3dc;color:#b26a00}
+.mgrp{margin-top:6px;font-size:11.5px}
+.mgrp > button{border:0;background:none;color:var(--accent);cursor:pointer;padding:2px 0;font-size:11.5px}
+.mgrp.skip .ml{opacity:.7}
+.msbox{border:1.5px solid #cfe0f8;border-radius:10px;padding:7px 9px;margin-bottom:7px;background:#f7fbff}
+.msbox .code{font:700 18px ui-monospace,Menlo,monospace;letter-spacing:2px;margin:3px 0;cursor:pointer;-webkit-user-select:all;user-select:all}
+.msbox .acts{display:flex;gap:10px;align-items:center;margin-top:4px}
 
 /* system monitor */
 .chart{margin:3px 0 7px}
@@ -181,6 +218,67 @@ function pkRow(it, withActs){
     ${d && withActs ? `<button class="gotbtn" onclick="gotIt('${n}')">${esc(p.got)}</button>` : ''}
   </div>`;
 }
+/* Claude Code: finished / needs you / permission / question (features/claude.py) */
+const clSel = {};
+function clProj(a){ return a.project ? `<span class="clproj">📁 ${esc(a.project)}</span>` : ''; }
+function clLeft(a){ const m = Math.max(0, Math.round((a.until - Date.now() / 1000) / 60)); return T().cl.left(m); }
+function clWhat(a){
+  const C = T().cl, i = a.input || {}, t = a.tool || '';
+  if(t === 'Bash') return {label: C.tools.Bash, code: i.command, note: i.description};
+  if(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Read'].includes(t)) return {label: C.tools[t] || t, code: (i.file_path || i.notebook_path || '').replace(/^\/Users\/[^/]+/, '~')};
+  if(t === 'WebFetch') return {label: C.tools.WebFetch, code: i.url};
+  if(t === 'WebSearch') return {label: C.tools.WebSearch, code: i.query};
+  const short = t.startsWith('mcp__') ? t.split('__').slice(1).join(' › ') : t;
+  const j = JSON.stringify(i); return {label: C.tools.other(short), code: j && j !== '{}' ? (j.length > 400 ? j.slice(0, 400) + '…' : j) : ''};
+}
+async function clAnswer(rid, ans){ await api().feature('claude', 'answer', rid, ans); }
+function clPick(rid, qi, label, multi, total){
+  const sel = clSel[rid] = clSel[rid] || {};
+  if(multi){ const set = new Set(sel[qi] || []); set.has(label) ? set.delete(label) : set.add(label); sel[qi] = [...set]; }
+  else sel[qi] = label;
+  if(total === 1 && !multi) return clSend(rid);
+  renderBalloon();
+}
+function clSend(rid){
+  const r = reports().find(x => x.id === rid); if(!r) return;
+  const sel = clSel[rid] || {}, answers = {};
+  (r.data.questions || []).forEach((q, qi) => { const v = sel[qi]; if(v && v.length) answers[q.question] = Array.isArray(v) ? v.join(', ') : v; });
+  delete clSel[rid];
+  clAnswer(rid, {answers});
+}
+const mlOpen = {rest: false, skip: false};
+function mlAgo(ts){
+  const d = Date.now() / 1000 - ts;
+  return d < 20 * 3600 ? hhmm(ts) : new Date(ts * 1000).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {month:'numeric', day:'numeric'});
+}
+function mlRow(m){
+  const M = T().ml, a = m.account || '', src = m.src === 'outlook' ? M.outlook : a.includes('@') ? a.split('@')[1].replace(/^(g?mail|email|my)\./, '') : (a || M.apple);
+  const why = m.why ? `<span class="why">${esc(M.why[m.why] || m.why)}</span>` : '';
+  return `<div class="ml ${m.read ? '' : 'unread'} ${m.level}" title="${esc(m.addr)}" data-id="${esc(m.id)}" onclick="fcall('mail','open',this.dataset.id)">
+    <div class="mid"><div class="fr"><b>${esc(m.from || m.addr)}</b><span class="src">· ${esc(src)}</span><span class="tm">${mlAgo(m.ts)}</span></div>
+      <div class="sj">${esc(m.subject || '—')}</div>${m.preview ? `<div class="pv">${esc(m.preview)}</div>` : ''}</div>${why}</div>`;
+}
+// Microsoft sign-in, in the balloon (only ever shown after you opened Mail)
+function msBox(s){
+  const M = T().ml, ms = s.ms || {};
+  if(ms.st === 'signing'){
+    const left = Math.max(1, Math.round((ms.until - Date.now() / 1000) / 60));
+    return `<div class="msbox"><div class="ln"><b>🔑 ${esc(M.msSign)}</b></div>
+      <div class="ln dim">${esc(M.msStep1)} · ${esc(M.msStep2)}</div>
+      <div class="code" title="${esc(T().copied)}" onclick="copyNum('${esc(ms.code)}')">${esc(ms.code)}</div>
+      <div class="acts"><button class="okbtn" onclick="copyNum('${esc(ms.code)}'); fcall('mail','open_sign_in_page')">${esc(M.msCopyOpen)}</button>
+        <button class="lnk" onclick="fcall('mail','cancel_sign_in')">${esc(M.cancel)}</button></div>
+      <div class="ln dim" style="margin-top:3px">${esc(M.msWait(left))}</div></div>`;
+  }
+  const line = (txt, cls, btn) => `<div class="ln ${cls}">${esc(txt)} ${btn || ''}</div>`;
+  const b = (label, js) => `<button class="lnk" ${s.busy ? 'disabled' : ''} onclick="${js}">${esc(label)}</button>`;
+  if(ms.err === 'no_client') return line(M.msNoClient, 'warn', b(M.toSettings + ' ›', "api().open_settings('mail')"));
+  if(ms.note === 'expired' && ms.st !== 'ok') return line(M.msExpired, 'dim', b(M.msSignAgain, "fcall('mail','sign_in')"));
+  if(ms.st === 'need') return line(M.msNeed, 'warn', b(M.msSignAgain, "fcall('mail','sign_in')"));
+  if(ms.st === 'waiting') return line(M.msWaiting, 'dim', b(M.msUnlock, "fcall('mail','check')"));
+  if(ms.st === 'error') return line(M.msErr(ms.err || ''), 'warn', b(M.retry, ms.account ? "fcall('mail','check')" : "fcall('mail','sign_in')"));
+  return '';
+}
 const FEATURES = {
   parcels: {
     report(r){
@@ -197,7 +295,7 @@ const FEATURES = {
         if(m.st === 'off') out.push(`<span class="dim">${p.mailOff}</span>`);
         else if(m.st === 'error'){
           const k = mailErrKind(m.err);
-          out.push(`<span class="warn">${k === 'net' ? esc(p.mailNoNet) : k === 'auth' ? esc(p.mailAuth) : esc(p.mailErr(m.err || ''))}</span>`);
+          out.push(`<span class="warn">${k === 'net' ? esc(p.mailNoNet) : k === 'auth' ? esc(p.mailAuth) : k === 'locked' ? esc(p.mailLocked) : esc(p.mailErr(m.err || ''))}</span>`);
         }
         else if(m.st === 'reading'){
           const k = (m.found || []).length;
@@ -230,7 +328,9 @@ const FEATURES = {
       if(a.err) out.push(`<span class="warn">${esc(p.runErr(a.err))}</span>`);
       // no network: offer to try again; Gmail not set up or refusing the password: its settings
       const net = m && m.st === 'error' && mailErrKind(m.err) === 'net';
+      const locked = m && m.st === 'error' && mailErrKind(m.err) === 'locked';
       const link = r.live || a.cached || !m ? ''
+        : locked ? `<button class="lnk" ${P().busy ? 'disabled' : ''} onclick="ack(${r.id}); fcall('parcels','check')">${esc(p.unlock)}</button>`
         : net ? `<button class="lnk" ${P().busy ? 'disabled' : ''} onclick="ack(${r.id}); fcall('parcels','check')">${esc(p.retry)}</button>`
         : (m.st === 'off' || m.st === 'error') ? `<button class="lnk" onclick="api().open_settings('parcels')">${esc(p.setup)} ›</button>` : '';
       return {html: out.map(l => `<div class="ln">${l}</div>`).join('') + (cards ? `<div style="margin-top:4px">${cards}</div>` : ''), link};
@@ -247,6 +347,80 @@ const FEATURES = {
           if(!r || !r.ok) return {err: p.tooShort};
           load(); return {msg: p.added(r.number)};
         }},
+      };
+    },
+  },
+  claude: {
+    report(r){
+      const C = T().cl, a = r.data || {};
+      const open = `<button class="lnk" onclick="ack(${r.id}); fcall('claude','open_claude')">${esc(C.open)} ›</button>`;
+      if(r.kind === 'done'){
+        const ask = a.ask ? `<div class="ln" style="margin-top:4px"><b>${esc(C.asks)}</b> ${esc(a.ask)}</div>` : '';
+        return {html: clProj(a) + `<div class="cltext">${esc(a.summary || C.noSummary)}</div>` + ask, link: open};
+      }
+      if(r.kind === 'failed') return {html: clProj(a) + `<div class="ln warn">${esc(C.failed(a.error || ''))}</div>`, link: open};
+      if(r.kind === 'needs') return {html: clProj(a) + `<div class="ln">${esc(a.message || C.needsYou)}</div>`, link: open};
+      if(r.kind === 'permission'){
+        const w = clWhat(a);
+        return {html: clProj(a) + `<div class="ln"><b>${esc(w.label)}</b></div>` +
+          (w.note ? `<div class="ln dim">${esc(w.note)}</div>` : '') + (w.code ? `<div class="clcode">${esc(w.code)}</div>` : '') +
+          `<div class="clbtns"><button class="clopt go" onclick="clAnswer(${r.id},{behavior:'allow'})">${esc(C.allow)}</button>` +
+          (a.always ? `<button class="clopt" onclick="clAnswer(${r.id},{behavior:'allow',always:true})">${esc(C.always)}</button>` : '') +
+          `<button class="clopt no" onclick="clAnswer(${r.id},{behavior:'deny'})">${esc(C.deny)}</button></div>`,
+          link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude};
+      }
+      if(r.kind === 'question'){
+        const qs = a.questions || [], sel = clSel[r.id] || {};
+        const body = qs.map((q, qi) => {
+          const multi = !!q.multiSelect, cur = sel[qi];
+          const on = l => multi ? (cur || []).includes(l) : cur === l;
+          return `<div class="clq">${q.header ? `<div class="hd">${esc(q.header)}</div>` : ''}<div class="ln">${esc(q.question)}</div>
+            <div class="clbtns">${(q.options || []).map(o => `<button class="clopt ${on(o.label) ? 'on' : ''}" title="${esc(o.description || '')}"
+              onclick="clPick(${r.id},${qi},this.dataset.l,${multi},${qs.length})" data-l="${esc(o.label)}">${esc(o.label)}</button>`).join('')}</div></div>`;
+        }).join('');
+        const need = qs.length > 1 || qs.some(q => q.multiSelect);
+        const all = qs.every((q, qi) => sel[qi] && sel[qi].length);
+        const send = need ? `<div class="clbtns"><button class="clopt go" ${all ? '' : 'disabled'} onclick="clSend(${r.id})">${esc(C.send)}</button></div>` : '';
+        return {html: clProj(a) + body + send, link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude};
+      }
+      return {html: ''};
+    },
+  },
+  mail: {
+    open(){ fcall('mail', 'opened'); },
+    report(r){
+      const M = T().ml, a = r.data || {};
+      const rows = (a.items || []).map(m => mlRow(m)).join('');
+      return {html: `<div class="ln">${esc(M.newMail(a.n))}</div><div style="margin-top:3px">${rows}</div>`,
+        link: `<button class="lnk" onclick="ack(${r.id}); openFeature('mail')">${esc(M.showAll)} ›</button>`};
+    },
+    view(){
+      const M = T().ml, s = state.f.mail || {}, items = s.items || [], out = [];
+      out.push(msBox(s));
+      const ap = s.apple || {};
+      if(ap.st === 'not_running') out.push(`<div class="ln dim">${esc(M.appleOff)} <button class="lnk" onclick="fcall('mail','open_mail_app')">${esc(M.openMail)}</button></div>`);
+      else if(ap.st === 'denied') out.push(`<div class="ln warn">${esc(M.appleDenied)} <button class="lnk" onclick="api().open_url('x-apple.systempreferences:com.apple.preference.security?Privacy_Automation')">${esc(M.allow)} ›</button></div>`);
+      else if(ap.st === 'error') out.push(`<div class="ln warn">${esc(M.appleErr(ap.err || ''))}</div>`);
+      if(s.busy && !items.length) out.push(`<div class="ln">${esc(s.busy === 'outlook' ? M.lookingMs : s.busy === 'apple' ? M.lookingApple : M.looking)}<span class="dots"></span></div>`);
+      const imp = items.filter(m => m.level === 'important'), rest = items.filter(m => m.level === 'normal'), skip = items.filter(m => m.level === 'skip');
+      if(!s.busy && s.last && !items.length) out.push(`<div class="ln dim">${esc(M.none)}</div>`);
+      else if(items.length && !imp.length) out.push(`<div class="ln dim">${esc(M.noneImportant)}</div>`);
+      let html = out.join('') + imp.map(m => mlRow(m)).join('');
+      if(rest.length) html += `<div class="mgrp"><button onclick="mlOpen.rest=!mlOpen.rest; renderBalloon()">${mlOpen.rest ? '▾' : '▸'} ${esc(M.more(rest.length))}</button>${mlOpen.rest ? rest.map(m => mlRow(m)).join('') : ''}</div>`;
+      if(skip.length){
+        const by = {}; skip.forEach(m => by[m.why] = (by[m.why] || 0) + 1);
+        const kinds = Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(M.why[k] || k)} ${n}`).join(' · ');
+        html += `<div class="mgrp skip"><button onclick="mlOpen.skip=!mlOpen.skip; renderBalloon()">${mlOpen.skip ? '▾' : '▸'} ${esc(M.skipped(skip.length))}</button> <span class="dim">${kinds}</span>${mlOpen.skip ? skip.map(m => mlRow(m)).join('') : ''}</div>`;
+      }
+      const ms = s.ms || {};
+      const when = s.busy ? (s.busy === 'outlook' ? M.lookingMs : M.lookingApple) : s.last ? M.checked(hhmm(s.last)) : '';
+      // Outlook is optional: the link shows only once an app ID is filled in (Settings → Mail)
+      const add = s.ms_ready && !ms.account && ms.st !== 'signing' ? `<button class="lnk" onclick="fcall('mail','sign_in')">${esc(M.addOutlook)}</button>` : '';
+      return {
+        title: M.title + (imp.length ? ` · ${M.important(imp.length)}` : ''),
+        html,
+        foot: `<span class="sp">${esc(when)}</span>${add}<button class="lnk" ${s.busy ? 'disabled' : ''} onclick="fcall('mail','check')">${esc(M.check)}</button>`,
+        wide: true,
       };
     },
   },
@@ -459,7 +633,7 @@ function renderBalloon(){
     $('bclose').style.display = 'none';
     body.innerHTML = out.html;
     foot.innerHTML = `<span class="sp">${out.link || (r.live || (r.data || {}).cached ? '' : hhmm(r.ts))}</span>` +
-      `<button class="okbtn" ${r.live ? 'disabled' : ''} onclick="ack(${r.id})">${r.live ? '…' : esc(L.ok)}</button>`;
+      `<button class="okbtn ${out.ok ? 'ghost' : ''}" ${r.live ? 'disabled' : ''} onclick="ack(${r.id})">${r.live ? '…' : esc(out.ok || L.ok)}</button>`;
   } else if(mode === 'view'){
     const v = FEATURES[view].view();
     viewInput = v.input || null;
