@@ -33,6 +33,7 @@ SOCK = os.environ.get("PARCELWIDGET_CLAUDE_SOCK") or os.path.join(instance.BASE,
 HOOK_DST = os.path.join(instance.BASE, "claude_hook.py")
 SETTINGS = os.path.expanduser("~/.claude/settings.json")
 WAITS = [60, 120, 300, 600]
+CHOICE_WAIT = 120     # Claude's turn stays open this long for a pick from its end-of-turn buttons
 WRAP = "mcp__ccd_turn__wrap_up"         # the Claude desktop app's end-of-turn summary
 
 L = {
@@ -58,7 +59,7 @@ def _hooks_wanted():
     bg = {"type": "command", "command": cmd, "async": True}
     wait = {"type": "command", "command": cmd, "timeout": max(WAITS) + 30}
     return {
-        "Stop": [{"hooks": [dict(bg)]}],
+        "Stop": [{"hooks": [dict(wait)]}],          # waits only when Claude ended with buttons
         "StopFailure": [{"hooks": [dict(bg)]}],
         "Notification": [{"hooks": [dict(bg)]}],
         "PostToolUse": [{"matcher": "*", "hooks": [dict(bg)]}],
@@ -114,11 +115,13 @@ def install():
     os.makedirs(instance.BASE, exist_ok=True)
     shutil.copyfile(_hook_src(), HOOK_DST)
     d = _read_settings()
+    before = json.dumps(d, sort_keys=True)
     hooks = _strip(d.get("hooks"))
     for ev, groups in _hooks_wanted().items():
         hooks.setdefault(ev, []).extend(groups)
     d["hooks"] = hooks
-    _write_settings(d)
+    if json.dumps(d, sort_keys=True) != before:      # only touch the file when something changed
+        _write_settings(d)
 
 
 def uninstall():
@@ -166,9 +169,9 @@ class Claude(Feature):
         if self.cfg.get("enabled"):
             if installed():
                 try:
-                    shutil.copyfile(_hook_src(), HOOK_DST)       # keep the hook up to date
-                except OSError:
-                    pass
+                    install()          # keep the hook and its entries up to date (after an update)
+                except Exception as e:
+                    log("claude: couldn't refresh the hooks: %r" % e)
             self._listen()
 
     def _listen(self):
@@ -251,21 +254,35 @@ class Claude(Feature):
         if name == "PostToolUse":
             if ev.get("tool_name") == WRAP:
                 ti = ev.get("tool_input") or {}
-                self._wrap[sid] = {"recap": ti.get("recap") or "", "ask": ti.get("ask") or ""}
+                acts = [a.get("label") or a.get("action") for a in (ti.get("actions") or []) if isinstance(a, dict)]
+                self._wrap[sid] = {"recap": ti.get("recap") or "", "ask": ti.get("ask") or "",
+                                   "actions": [a for a in acts if a][:3], "app": [a.get("action") or "" for a in
+                                                                              (ti.get("actions") or []) if isinstance(a, dict)][:3]}
             self._answered_elsewhere(sid, ev.get("tool_name"), ev.get("call"))
             return False
         log("claude: %s%s" % (name, (" " + ev.get("notification_type")) if ev.get("notification_type") else ""))
         if name == "Stop":
             self._answered_elsewhere(sid)
-            w = self._wrap.pop(sid, {})
-            if self._c("done", True):
-                for r in list(rep.items):     # one "finished" balloon per session: the newest
-                    if r["feature"] == self.id and r["kind"] == "done" and r["data"].get("sid") == sid:
-                        rep.drop(r)
-                rep.add(self.id, "done", {"sid": sid, "project": project,
-                                          "summary": _summary(w.get("recap") or ev.get("last_assistant_message")),
-                                          "ask": w.get("ask", "")}, live=False)
-                self._attention()
+            w = self._wrap.pop(sid, None)
+            if w is None and conn:
+                for _ in range(8):             # the wrap-up note (async) may land a moment later
+                    time.sleep(0.1)
+                    if sid in self._wrap:
+                        w = self._wrap.pop(sid)
+                        break
+            w = w or {}
+            if not self._c("done", True):
+                return False
+            for r in list(rep.items):         # one "finished" balloon per session: the newest
+                if r["feature"] == self.id and r["kind"] == "done" and r["data"].get("sid") == sid:
+                    rep.drop(r)
+            data = {"sid": sid, "project": project, "ask": w.get("ask", ""),
+                    "summary": _summary(w.get("recap") or ev.get("last_assistant_message"))}
+            if conn and w.get("ask") and w.get("actions") and self._c("questions", True):
+                data.update(actions=w["actions"], app=w.get("app") or [])
+                return self._ask(conn, "done", data, ev, wait=CHOICE_WAIT)
+            rep.add(self.id, "done", data, live=False)
+            self._attention()
             return False
         if name == "StopFailure":
             self._answered_elsewhere(sid)
@@ -301,8 +318,8 @@ class Claude(Feature):
             pass
 
     # ---------- questions that wait for you ----------
-    def _ask(self, conn, kind, data, ev):
-        data["until"] = time.time() + self.wait()
+    def _ask(self, conn, kind, data, ev, wait=None):
+        data["until"] = time.time() + (wait or self.wait())
         r = self.app.reports.add(self.id, kind, data, live=False)
         p = {"sid": data["sid"], "tool": ev.get("tool_name"), "call": ev.get("call"), "answer": None, "done": False}
         with self._plock:
@@ -342,7 +359,12 @@ class Claude(Feature):
                 pass
             with self._plock:
                 self._pending.pop(r["id"], None)
+            gone = r not in self.app.reports.items
             self.app.reports.drop(r)
+            if r["kind"] == "done" and why in ("timeout", "hook gone") and not gone:
+                # not picked here: keep the summary, without the buttons
+                d = {k: v for k, v in r["data"].items() if k not in ("actions", "app", "until")}
+                self.app.reports.add(self.id, "done", d, live=False)
             log("claude: %s %s" % (r["kind"], why))
 
     def _answered_elsewhere(self, sid, tool=None, call=None):
@@ -360,6 +382,12 @@ class Claude(Feature):
             return False
         if ans.get("behavior") in ("allow", "deny"):
             p["answer"] = {"behavior": ans["behavior"], "always": bool(ans.get("always"))}
+        elif ans.get("choice"):
+            r = next((x for x in self.app.reports.items if x["id"] == int(rid)), None)
+            acts = (r or {}).get("data", {}).get("actions") or []
+            if ans["choice"] not in acts:
+                return False
+            p["answer"] = {"choice": ans["choice"], "ask": r["data"].get("ask", "")}
         elif isinstance(ans.get("answers"), dict):
             p["answer"] = {"answers": {str(k): str(v) for k, v in ans["answers"].items()}}
         else:

@@ -356,6 +356,13 @@ const FEATURES = {
       const open = `<button class="lnk" onclick="ack(${r.id}); fcall('claude','open_claude')">${esc(C.open)} ›</button>`;
       if(r.kind === 'done'){
         const ask = a.ask ? `<div class="ln" style="margin-top:4px"><b>${esc(C.asks)}</b> ${esc(a.ask)}</div>` : '';
+        const acts = a.actions || [];
+        if(acts.length && a.until){    // Claude waits for your pick (see features/claude.py)
+          const btns = acts.map((l, i) => `<button class="clopt ${i ? '' : 'go'}" data-l="${esc(l)}"
+            onclick="clAnswer(${r.id},{choice:this.dataset.l})">${esc(l === (a.app || [])[i] && C.acts[l] ? C.acts[l] : l)}</button>`).join('');
+          return {html: clProj(a) + `<div class="cltext">${esc(a.summary || C.noSummary)}</div>` + ask + `<div class="clbtns">${btns}</div>`,
+            link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude};
+        }
         return {html: clProj(a) + `<div class="cltext">${esc(a.summary || C.noSummary)}</div>` + ask, link: open};
       }
       if(r.kind === 'failed') return {html: clProj(a) + `<div class="ln warn">${esc(C.failed(a.error || ''))}</div>`, link: open};

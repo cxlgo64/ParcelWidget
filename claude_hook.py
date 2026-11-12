@@ -2,7 +2,8 @@
 
 Installed by the widget (Settings → 🤖 Claude) into ~/.claude/settings.json, run by the
 system's /usr/bin/python3 (standard library only, Python 3.9+). Claude Code runs it on:
-    Stop / StopFailure        Claude finished (or failed): she says how it went
+    Stop / StopFailure        Claude finished (or failed): she says how it went; when Claude ended
+                              with a question and buttons, your pick goes back to Claude
     Notification              Claude is waiting for you
     PermissionRequest         Claude wants to do something: Allow / Deny from her balloon
     PreToolUse AskUserQuestion  Claude asks you something: pick the answer in her balloon
@@ -35,7 +36,7 @@ def _slim(v, n=MAX_TEXT):
 
 def _blocking(ev):
     name = ev.get("hook_event_name")
-    return name == "PermissionRequest" or (name == "PreToolUse" and ev.get("tool_name") == "AskUserQuestion")
+    return name in ("PermissionRequest", "Stop") or (name == "PreToolUse" and ev.get("tool_name") == "AskUserQuestion")
 
 
 def _output(ev, ans):
@@ -53,6 +54,12 @@ def _output(ev, ans):
             return {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {
                 "behavior": "deny", "message": ans.get("message") or "Denied in Parcel Widget."}}}
         return None
+    if name == "Stop" and ans.get("choice"):
+        # your pick from the buttons Claude offered at the end of its turn: Claude carries on with it
+        ask = (" (your answer to: %s)" % ans["ask"]) if ans.get("ask") else ""
+        return {"decision": "block",
+                "reason": 'The user picked "%s" in Parcel Widget%s. Carry on with that, as if they had pressed '
+                          'that button.' % (ans["choice"], ask)}
     if name == "PreToolUse" and isinstance(ans.get("answers"), dict):
         inp = dict(ev.get("tool_input") or {})
         inp["answers"] = {str(k): str(v) for k, v in ans["answers"].items()}
