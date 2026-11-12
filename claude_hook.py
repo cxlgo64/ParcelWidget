@@ -88,6 +88,8 @@ def main():
         msg["call"] = hashlib.sha1(json.dumps(ev["tool_input"], sort_keys=True).encode()).hexdigest()[:16]
     msg = _slim(msg)
     msg["wait"] = blocking
+    if os.environ.get("PARCELWIDGET_RUN"):
+        msg["run"] = True      # started from her balloon (Claude小姐)
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.settimeout(2)

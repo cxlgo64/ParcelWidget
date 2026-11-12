@@ -29,9 +29,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 .fbtn:hover{background:#e8f1fe;transform:scale(1.12)!important}
 #hover.show .fbtn{opacity:1;transform:scale(1)}
 #hover:not(.show) .fbtn{pointer-events:none}
-.fbtn .tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);white-space:nowrap;
-  background:var(--frame);color:#fff;font-size:11px;padding:2px 7px;border-radius:9px;opacity:0;transition:opacity .12s;pointer-events:none}
-.fbtn:hover .tip{opacity:1}
+.fbtn svg{width:20px;height:20px;display:block}
+/* one name label for all buttons, on the top layer: always above the button you point at, never under another */
+#htip{position:absolute;z-index:10;white-space:nowrap;background:var(--frame);color:#fff;font-size:11px;font-weight:600;
+  padding:2px 8px;border-radius:9px;opacity:0;transition:opacity .12s;pointer-events:none;box-shadow:1px 1px 0 #0002}
+#htip.show{opacity:1}
 
 /* ---- comic speech balloon ---- */
 #balloon{position:absolute;z-index:4;background:var(--paper);border:2.5px solid var(--frame);border-radius:20px;
@@ -130,6 +132,54 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 .clopt.no{border-color:#d9534f;color:#c0392b}
 .clq{margin-top:6px}
 .clq .hd{font-size:10.5px;font-weight:700;color:var(--muted)}
+.clturn{padding:5px 0;border-top:1px dashed #d6e4f7}
+.clturn:first-child{border-top:0}
+.clturn .q{font-size:11.5px;color:var(--muted);white-space:pre-wrap;max-height:48px;overflow:hidden}
+.clturn .q b{color:var(--ink)}
+.clturn .step{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clfold{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:5px}
+.clfold button{border:1px solid #cfe0f8;background:#fff;border-radius:9px;font-size:10.5px;padding:1px 7px;cursor:pointer;color:var(--muted)}
+.clm{position:relative;display:inline-flex;align-items:center;margin-right:2px}
+.clmb{border:1px solid #cfe0f8;background:#fff;border-radius:9px;font-size:10.5px;padding:1px 7px;cursor:pointer;color:var(--ink);
+  white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+.clm.open .clmb,.clmb:hover{border-color:var(--frame)}
+.clmp{margin:8px 0 2px;border:2px solid var(--frame);border-radius:12px;padding:6px 9px 7px;background:var(--paper);font-size:11.5px}
+.clmp .bt{display:flex;align-items:center;font-weight:700}.clmp .bt span{flex:1}
+.clmp .cg{margin-top:5px}.clmp .bn{display:block;color:var(--muted);font-size:10.5px;margin-bottom:2px}
+.clmp .cv{display:flex;flex-wrap:wrap;gap:3px}
+.clmp .cv button{border:1px solid #cfe0f8;background:#fff;border-radius:9px;font-size:11px;padding:1px 7px;cursor:pointer;color:var(--ink)}
+.clmp .cv button.on{border-color:var(--frame);background:var(--frame);color:#fff;font-weight:700}
+.clmp .cv button:disabled{opacity:.4;cursor:default}
+.clmp .bw{color:var(--muted);font-size:10.5px;margin-top:5px}
+#balloon.battle .clmp{font-size:12.5px}#balloon.battle .clmp .cv button{font-size:12px;padding:2px 9px}
+#balloon.battle .clmb{font-size:12px;max-width:220px}
+.clfold button.on{border-color:var(--frame);color:var(--ink);font-weight:700}
+/* battle mode (战斗模式): the big chat dialog for Claude小姐 / Codex */
+#balloon.battle{box-shadow:5px 5px 0 #2f80ed44}
+#balloon.battle .bhead .t{font-size:15px}
+#bextra{display:flex;align-items:center}
+.batt{position:relative;display:inline-flex;align-items:center;color:var(--muted);cursor:default;padding:2px 3px}
+.batt .lv{fill:#34c759}.batt.mid .lv{fill:#ff9f0a}.batt.low .lv{fill:#ff3b30}
+.batt .bpop{display:none;position:absolute;top:100%;right:-40px;margin-top:4px;z-index:20;width:190px;
+  background:var(--paper);border:2px solid var(--frame);border-radius:12px;padding:7px 9px;box-shadow:2px 3px 0 #2f80ed2e;
+  color:var(--ink,#222);font-size:11.5px;font-weight:400;line-height:1.35;cursor:default}
+.batt:hover .bpop{display:block}
+.bpop .bt{display:block;font-weight:700;margin-bottom:4px}
+.bpop .br{display:flex;align-items:center;gap:6px;margin-top:4px}
+.bpop .bn{flex:0 0 auto;min-width:62px}
+.bpop .bm{flex:1;height:6px;border-radius:3px;background:#0001;overflow:hidden}
+.bpop .bm i{display:block;height:100%;background:#34c759}.bpop .bm i.mid{background:#ff9f0a}.bpop .bm i.low{background:#ff3b30}
+.bpop .br b{min-width:30px;text-align:right}
+.bpop .bw{color:var(--muted);font-size:10.5px;padding-left:68px}
+#balloon.battle .bbody .cltext{max-height:none;font-size:13.5px;line-height:1.5}
+#balloon.battle .clturn{padding:8px 0}
+#balloon.battle .clturn .q{max-height:none;font-size:12.5px}
+#balloon.battle .clturn .step{font-size:11.5px}
+#balloon.battle .binput input{font-size:13.5px;padding:7px 12px}
+#bbig.on{color:#fff;background:var(--frame)}
+#balloon.battle .clcode{font-size:13px;line-height:1.45;max-height:300px;padding:8px 10px}
+#balloon.battle .ln{font-size:13.5px}
+#balloon.battle .clopt{font-size:13.5px;padding:5px 14px}
 /* mail */
 .ml{display:flex;gap:6px;align-items:flex-start;padding:5px 2px;border-top:1px dashed #d6e4f7;cursor:pointer;border-radius:6px}
 .ml:first-child{border-top:0}
@@ -164,11 +214,12 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 <div id="root">
 <div id="stage" class="side-right">
   <div id="balloon">
-    <div class="bhead" id="bhead"><span class="t" id="btitle"></span><span class="pg" id="bpage"></span>
+    <div class="bhead" id="bhead"><span class="t" id="btitle"></span><span id="bextra"></span><span class="pg" id="bpage"></span>
+      <button class="bx" id="bbig" onclick="setBattle(!battle)" style="display:none"></button>
       <button class="bx" id="bclose" onclick="closeView()">✕</button></div>
     <div class="bbody" id="bbody"></div>
     <!-- kept outside the body so typing isn't lost when the body re-renders -->
-    <div class="binput" id="binput"><input id="binText" autocomplete="off" spellcheck="false"
+    <div class="binput" id="binput"><input id="binText" autocomplete="off" spellcheck="false" onfocus="if(viewCtl && viewCtl.battle) setBattle(true)"
       onkeydown="if(event.key==='Enter' && !event.isComposing)submitInput(); if(event.key==='Escape')closeView()">
       <button id="binBtn" onclick="submitInput()"></button></div>
     <div class="bmsg" id="bmsg"></div>
@@ -245,6 +296,109 @@ function clSend(rid){
   (r.data.questions || []).forEach((q, qi) => { const v = sel[qi]; if(v && v.length) answers[q.question] = Array.isArray(v) ? v.join(', ') : v; });
   delete clSel[rid];
   clAnswer(rid, {answers});
+}
+const FICONS = {claude: '<svg viewBox="0 0 24 24" fill="#D97757"><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(0 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(30 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(60 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(90 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(120 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(150 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(180 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(210 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(240 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(270 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(300 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(330 12 12)"/><circle cx="12" cy="12" r="2.6"/></svg>'};
+FICONS.codex = '<svg viewBox="0 0 24 24"><rect x="2" y="3.5" width="20" height="17" rx="4.5" fill="#10A37F"/><path d="M7 9l3.6 3L7 15" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 15.6h4.6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+/* a chat run by a command line: Claude小姐 and Codex (features/chat.py); C = its words (T().cl / T().cx) */
+function chatView(id, C){
+  const s = state.f[id] || {}, turns = (s.chat || {}).turns || [], fs = s.folders || [];
+  const folders = `<div class="clfold">📁 ${fs.map((f, i) => `<button class="${i ? '' : 'on'}" title="${esc(f.path)}" ${s.running ? 'disabled' : ''}
+    data-p="${esc(f.path)}" onclick="fcall('${id}','folder',this.dataset.p)">${esc(f.name)}</button>`).join('')}
+    <button ${s.running ? 'disabled' : ''} onclick="fcall('${id}','pick_folder')">${esc(C.other)}</button></div>`;
+  const rows = turns.map(t => `<div class="clturn"><div class="q"><b>${esc(C.you)}</b> ${esc(t.q)}</div>` +
+    (t.st === 'running' ? `<div class="ln">${esc(C.working)}<span class="dots"></span></div>${t.step ? `<div class="step">${esc(t.step)}</div>` : ''}`
+      : t.st === 'done' ? `<div class="cltext">${esc(t.a)}</div><div class="step">${esc(C.took(t.secs))}</div>`
+      : t.st === 'stopped' ? `<div class="ln dim">${esc(C.stopped)}</div>`
+      : `<div class="ln warn">${esc(C.runErr(t.a))}</div>`) + `</div>`).join('');
+  const big = !!battle;            // the normal balloon stays plain: folders and the model button only in battle mode
+  const intro = !s.cli ? `<div class="ln warn">${esc(C.noCli)}</div>` : turns.length ? '' : `<div class="ln dim">${esc(big ? C.hello : C.helloShort)}</div>`;
+  return {
+    title: C.miss,
+    head: (big ? clOpts(id, s) : '') + clBattery(s.usage),
+    html: (big ? folders : '') + intro + rows + (big && clMenu ? clPanel(id, s) : ''),
+    foot: `<span class="sp">${esc(s.running ? C.working : turns.length ? C.followUp : '')}</span>` +
+      (s.running ? `<button class="lnk" onclick="fcall('${id}','stop_run')">${esc(C.stop)}</button>`
+        : turns.length ? `<button class="lnk" onclick="fcall('${id}','new_chat')">${esc(C.newChat)}</button>` : ''),
+    wide: true,
+    battle: true,                  // typing here opens the big dialog (battle mode)
+    scrollKey: turns.length + ':' + turns.map(t => t.st).join(),   // new message or status: show the end
+    input: s.cli ? {ph: C.ph, btn: C.send, async submit(v){
+      setBattle(true); pet.react('think');
+      const r = await api().feature(id, 'send', v);
+      load(); return r && r.ok ? {} : {err: r && r.err === 'busy' ? C.busy : C.noCli};
+    }} : null,
+  };
+}
+// which model, how hard it thinks, how much context (for the next message): one button by the battery
+let clMenu = false;
+function clLabels(s){
+  const C = T().cl, lb = ((s.choices || {}).labels || {}).model || {};
+  return {C, mlab: v => lb[v] || C.models[v] || v};
+}
+// the button by the battery: what's picked now
+function clOpts(id, s){
+  const o = s.opts, {C, mlab} = clLabels(s);
+  if(!o || !s.choices) return '';
+  const short = (o.model === 'default' ? C.modelShort : mlab(o.model)) +
+    (o.effort !== 'default' ? ' · ' + (C.efforts[o.effort] || o.effort) : '') + (o.context === '1m' ? ' · 1M' : '');
+  return `<span class="clm ${clMenu ? 'open' : ''}"><button class="clmb" title="${esc(C.optTitle)}"
+    onclick="event.stopPropagation(); clToggle(!clMenu)">${esc(short)} ${clMenu ? '▴' : '▾'}</button></span>`;
+}
+// its menu: inside the balloon (at the end of the chat), so the balloon grows to fit it
+function clPanel(id, s){
+  const o = s.opts, ch = s.choices, {C, mlab} = clLabels(s);
+  if(!o || !ch) return '';
+  const grp = (k, list, lab) => `<div class="cg"><span class="bn">${esc(C.optT[k])}</span><div class="cv">${list.map(v => {
+    const off = s.running || (k === 'context' && v !== 'default' && (ch.no_1m || []).includes(o.model));
+    return `<button class="${v === o[k] ? 'on' : ''}" ${off ? 'disabled' : ''} onclick="clSetOpt('${id}','${k}','${esc(v)}')">${esc(lab(v))}</button>`;
+  }).join('')}</div></div>`;
+  const ctx = ch.context ? grp('context', ch.context, v => C.contexts[v] || v)
+    : ch.ctx ? `<div class="cg"><span class="bn">${esc(C.optT.context)}</span>${Math.round(ch.ctx / 1000)}K</div>` : '';
+  return `<div class="clmp" onclick="event.stopPropagation()"><div class="bt"><span>${esc(C.optTitle)}</span>
+      <button class="bx" onclick="clToggle(false)">✕</button></div>
+    ${grp('model', ch.model, mlab)}${grp('effort', ch.effort, v => C.efforts[v] || v)}${ctx}
+    <div class="bw">${esc(s.running ? C.optBusy : C.optNext)}</div></div>`;
+}
+function clToggle(on){
+  clMenu = !!on; lastFit = ''; renderBalloon();
+  if(clMenu) requestAnimationFrame(() => { const b = $('bbody'); b.scrollTop = b.scrollHeight; });
+}
+async function clSetOpt(id, k, v){ clMenu = true; await fcall(id, 'set_opt', k, v); }
+document.addEventListener('click', e => {
+  if(clMenu && !e.target.closest('.clm, .clmp')) clToggle(false);
+});
+// your Claude plan's limits: a little battery (what's left of the fuller one); hover for both
+function clBattery(u){
+  const C = T().cl;
+  if(!u || (!u.five && !u.week)) return '';
+  const used = Math.max((u.five || {}).pct || 0, (u.week || {}).pct || 0), left = Math.max(0, 100 - used);
+  const lvl = left <= 10 ? 'low' : left <= 30 ? 'mid' : 'ok';
+  const when = w => {
+    if(!w.resets) return w.resets_text ? C.resets(w.resets_text) : '';
+    const d = w.resets - Date.now() / 1000;
+    if(d <= 0) return C.resetsNow;
+    if(d < 3600) return C.resetsIn(`${Math.max(1, Math.round(d / 60))}${C.min}`);
+    if(d < 86400) return C.resetsIn(`${Math.floor(d / 3600)}${C.hr} ${Math.round(d % 3600 / 60)}${C.min}`);
+    const t = new Date(w.resets * 1000);
+    return C.resets(t.toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {weekday:'short'}) + ' ' +
+      t.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', {hour:'2-digit', minute:'2-digit', hour12:false}));
+  };
+  const row = (name, w) => w ? `<div class="br"><span class="bn">${esc(name)}</span>
+    <span class="bm"><i class="${w.pct >= 90 ? 'low' : w.pct >= 70 ? 'mid' : 'ok'}" style="width:${Math.min(100, w.pct)}%"></i></span>
+    <b>${Math.round(w.pct)}%</b></div><div class="bw">${esc(when(w))}</div>` : '';
+  const pop = row(C.five, u.five) + row(C.week, u.week) +
+    (u.more || []).map(w => row(C.weekOf(w.name), w)).join('');
+  return `<span class="batt ${lvl}" aria-label="${esc(C.limits)}"><svg viewBox="0 0 24 12" width="22" height="11">
+    <rect x=".75" y=".75" width="19.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <rect x="21" y="3.5" width="2.2" height="5" rx="1" fill="currentColor"/>
+    <rect class="lv" x="2.5" y="2.5" width="${(16 * left / 100).toFixed(1)}" height="7" rx="1.2"/></svg>
+    <span class="bpop"><span class="bt">${esc(C.limits)}</span>${pop}</span></span>`;
+}
+function chatReply(id, C, r){
+  const a = r.data || {};
+  return {html: clProj(a) + `<div class="ln dim">${esc(C.you)} ${esc(a.q)}</div>` +
+    (a.st === 'done' ? `<div class="cltext">${esc(a.a)}</div>` : `<div class="ln warn">${esc(C.runErr(a.a))}</div>`),
+    link: `<button class="lnk" onclick="ack(${r.id}); openFeature('${id}')">${esc(C.continue)} ›</button>`};
 }
 const mlOpen = {rest: false, skip: false};
 function mlAgo(ts){
@@ -351,8 +505,12 @@ const FEATURES = {
     },
   },
   claude: {
+    open(){ fcall('claude', 'opened'); },
+    closed(){ api().feature('claude', 'closed'); },
+    view(){ return chatView('claude', T().cl); },
     report(r){
       const C = T().cl, a = r.data || {};
+      if(r.kind === 'reply') return chatReply('claude', C, r);
       const open = `<button class="lnk" onclick="ack(${r.id}); fcall('claude','open_claude')">${esc(C.open)} ›</button>`;
       if(r.kind === 'done'){
         const ask = a.ask ? `<div class="ln" style="margin-top:4px"><b>${esc(C.asks)}</b> ${esc(a.ask)}</div>` : '';
@@ -374,7 +532,7 @@ const FEATURES = {
           `<div class="clbtns"><button class="clopt go" onclick="clAnswer(${r.id},{behavior:'allow'})">${esc(C.allow)}</button>` +
           (a.always ? `<button class="clopt" onclick="clAnswer(${r.id},{behavior:'allow',always:true})">${esc(C.always)}</button>` : '') +
           `<button class="clopt no" onclick="clAnswer(${r.id},{behavior:'deny'})">${esc(C.deny)}</button></div>`,
-          link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude};
+          link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude, big: !!a.run};
       }
       if(r.kind === 'question'){
         const qs = a.questions || [], sel = clSel[r.id] || {};
@@ -388,10 +546,16 @@ const FEATURES = {
         const need = qs.length > 1 || qs.some(q => q.multiSelect);
         const all = qs.every((q, qi) => sel[qi] && sel[qi].length);
         const send = need ? `<div class="clbtns"><button class="clopt go" ${all ? '' : 'disabled'} onclick="clSend(${r.id})">${esc(C.send)}</button></div>` : '';
-        return {html: clProj(a) + body + send, link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude};
+        return {html: clProj(a) + body + send, link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude, big: !!a.run};
       }
       return {html: ''};
     },
+  },
+  codex: {
+    open(){ fcall('codex', 'opened'); },
+    closed(){ api().feature('codex', 'closed'); },
+    view(){ return chatView('codex', T().cx); },
+    report(r){ return r.kind === 'reply' ? chatReply('codex', T().cx, r) : {html: ''}; },
   },
   mail: {
     open(){ fcall('mail', 'opened'); },
@@ -608,7 +772,7 @@ function balloonMode(){
   if(quip) return 'quip';
   return null;
 }
-let shownView = null, viewCtl = null, viewInput = null;
+let shownView = null, viewCtl = null, viewInput = null, lastScrollKey = null;
 async function submitInput(){
   const el = $('binText'), v = el.value.trim();
   if(!v || !viewInput) return;
@@ -621,6 +785,7 @@ function renderBalloon(){
   const mode = balloonMode(), b = $('balloon'), L = T();
   if(viewCtl && (mode !== 'view' || shownView !== view)){ viewCtl.close && viewCtl.close(); viewCtl = null; shownView = null; }
   b.classList.toggle('show', !!mode);
+  if(mode !== 'view'){ b.classList.remove('battle'); $('bbig').style.display = 'none'; }   // a report may turn it back on
   const inp = mode === 'view' && FEATURES[view].view && viewInput;
   $('binput').classList.toggle('show', !!inp);
   if(!inp){ $('bmsg').textContent = ''; }
@@ -636,9 +801,11 @@ function renderBalloon(){
     const r = rs[reportIdx], F = FEATURES[r.feature] || {};
     const out = F.report ? F.report(r) : {html: ''};
     $('btitle').textContent = ((L.report[r.feature] || {})[r.kind]) || r.feature;
+    $('bextra').innerHTML = $('bextra').dataset.h = '';
     $('bpage').textContent = rs.length > 1 ? `${reportIdx + 1}/${rs.length}` : '';
     $('bclose').style.display = 'none';
     body.innerHTML = out.html;
+    if(out.big){ b.classList.add('battle'); b.style.width = b.style.maxWidth = BATTLE_W + 'px'; }   // from a task typed in her chat
     foot.innerHTML = `<span class="sp">${out.link || (r.live || (r.data || {}).cached ? '' : hhmm(r.ts))}</span>` +
       `<button class="okbtn ${out.ok ? 'ghost' : ''}" ${r.live ? 'disabled' : ''} onclick="ack(${r.id})">${r.live ? '…' : esc(out.ok || L.ok)}</button>`;
   } else if(mode === 'view'){
@@ -646,13 +813,26 @@ function renderBalloon(){
     viewInput = v.input || null;
     $('binput').classList.toggle('show', !!viewInput);
     if(viewInput){ $('binText').placeholder = viewInput.ph; $('binBtn').textContent = viewInput.btn; }
-    $('btitle').textContent = v.title; $('bpage').textContent = ''; $('bclose').style.display = '';
+    $('btitle').textContent = v.title; $('bpage').textContent = '';
+    if($('bextra').dataset.h !== (v.head || '')){ $('bextra').innerHTML = $('bextra').dataset.h = v.head || ''; } $('bclose').style.display = '';
+    const st = body.scrollTop;
     if(shownView !== view || !v.live) body.innerHTML = v.html;
+    if(v.scrollKey !== undefined){
+      if(v.scrollKey !== lastScrollKey || shownView !== view) requestAnimationFrame(() => body.scrollTop = body.scrollHeight);
+      else body.scrollTop = st;
+      lastScrollKey = v.scrollKey;
+    }
     if(shownView !== view || !v.live) foot.innerHTML = v.foot || '';
     if(v.wide){ b.style.width = b.style.maxWidth = sizes().bw + 40 + 'px'; }
+    const big = !!(v.battle && battle);
+    b.classList.toggle('battle', big);
+    if(big){ b.style.width = b.style.maxWidth = BATTLE_W + 'px'; }
+    $('bbig').style.display = v.battle ? '' : 'none';
+    $('bbig').classList.toggle('on', big);
+    $('bbig').textContent = '⚔️'; $('bbig').title = big ? L.battleOff : L.battleOn;
     if(shownView !== view){ shownView = view; viewCtl = v; v.after && v.after(); }
   } else {
-    body.textContent = quip; foot.innerHTML = '';
+    body.textContent = quip; foot.innerHTML = ''; $('bextra').innerHTML = $('bextra').dataset.h = '';
   }
   layout();
 }
@@ -663,11 +843,21 @@ function openFeature(id, arg){
   if(F.open && F.open() === false) return;
   if(!F.view) return;
   quip = null; clearTimeout(quipTimer);
-  if(view !== id) $('bmsg').textContent = '';
+  if(view !== id){ $('bmsg').textContent = ''; const P0 = FEATURES[view]; P0 && P0.closed && P0.closed(); }
   view = id; renderBalloon();
   if(arg === 'add' || viewInput) setTimeout(() => $('binText').focus(), 60);
 }
-function closeView(){ view = null; viewInput = null; $('binText').value = ''; renderBalloon(); }
+// battle mode (战斗模式): a big dialog for the agent chats; on while you type, off with ⚔️ or ✕
+const BATTLE_W = 480, BATTLE_H = 660;
+let battle = false;
+function setBattle(on){
+  if(battle === !!on) return;
+  battle = !!on;
+  if(battle) pet.react('cheer');
+  lastFit = ''; renderBalloon();
+  setTimeout(() => { const b = $('bbody'); b.scrollTop = b.scrollHeight; }, 50);
+}
+function closeView(){ battle = false; clMenu = false; const F = FEATURES[view]; F && F.closed && F.closed(); view = null; viewInput = null; $('binText').value = ''; renderBalloon(); }
 function say(text, ms = 3000){
   if(!text || reports().length || view) return;
   quip = text; renderBalloon();
@@ -717,7 +907,8 @@ function layout(){
   const extraY = Math.max(0, -Math.min(...spots.map(s => s[1] - 50)));
   SW = W + extraX; SH = H + extraY;
   if(b.classList.contains('show')){
-    $('bbody').style.maxHeight = Math.max(80, bmax - H * .56 - 80) + 'px';
+    const big = b.classList.contains('battle');
+    $('bbody').style.maxHeight = Math.max(80, (big ? Math.max(bmax, BATTLE_H) : bmax) - H * .56 - 80) + 'px';
     const over = W * .7, lift = H * .6;
     b.style.bottom = lift + 'px';
     b.style.left = b.style.right = '';
@@ -740,13 +931,28 @@ function buildHover(){
   const key = fs.map(f => f.id).join() + lang;
   const h = $('hover'); if(h.dataset.key === key) return;
   h.dataset.key = key;
-  h.innerHTML = fs.map(f => `<button class="fbtn" data-f="${f.id}" onclick="openFeature('${f.id}')">${f.icon}
-    <span class="tip">${esc(lang === 'zh' ? f.name_zh : f.name)}</span></button>`).join('');
+  const icon = f => FICONS[f.id] || esc(f.icon);
+  h.innerHTML = fs.map(f => `<button class="fbtn" data-f="${f.id}" data-name="${esc(lang === 'zh' ? f.name_zh : f.name)}"
+    onclick="openFeature('${f.id}')">${icon(f)}</button>`).join('') + '<div id="htip"></div>';
   h.querySelectorAll('.fbtn').forEach(el => {
-    el.addEventListener('mouseenter', () => clearTimeout(hoverTimer));
-    el.addEventListener('mouseleave', () => hideHoverSoon());
+    el.addEventListener('mouseenter', () => { clearTimeout(hoverTimer); showTip(el); });
+    el.addEventListener('mouseleave', () => { $('htip').classList.remove('show'); hideHoverSoon(); });
   });
   lastFit = ''; layout();
+}
+// the name label: one fixed spot for every button, centered just above the arc of buttons (never over one)
+function showTip(btn){
+  const t = $('htip'), h = $('hover'), z = state.zoom || .78;
+  t.textContent = btn.dataset.name;
+  const r = h.getBoundingClientRect(), bs = [...h.querySelectorAll('.fbtn')].map(e => e.getBoundingClientRect());
+  const top = Math.min(...bs.map(x => x.top)), left = Math.min(...bs.map(x => x.left)), right = Math.max(...bs.map(x => x.right));
+  const w = t.offsetWidth;
+  let x = ((left + right) / 2 - r.left) / z - w / 2;
+  x = Math.max(2, Math.min(x, r.width / z - w - 2));
+  let y = (top - r.top) / z - t.offsetHeight - 6;
+  if(r.top + y * z < 2) y = (top - r.top) / z;      // no room above the arc: its top edge
+  t.style.left = x + 'px'; t.style.top = y + 'px';
+  t.classList.add('show');
 }
 function placeHover(SW, SH){
   const {W, H} = sizes(), right = (state.skin_side || 'right') === 'right';
@@ -917,7 +1123,7 @@ let drag = null;
 document.addEventListener('mousedown', async e => {
   if(e.button !== 0) return;
   const onPet = e.target.id === 'hit', head = e.target.closest('.bhead');
-  if(!onPet && (!head || e.target.closest('button'))) return;
+  if(!onPet && (!head || e.target.closest('button, .batt, .clm'))) return;
   e.preventDefault();
   const d = drag = {sx:e.screenX, sy:e.screenY, lx:e.screenX, pos:null, target:null, busy:false, el: onPet ? $('hit') : head, onPet, moved:0};
   d.el.classList.add('dragging');

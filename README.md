@@ -41,6 +41,14 @@ and a CPU / memory / network monitor drawn as candlestick charts.
   questions can be answered there too. "In Claude", or no answer in time, leaves it to Claude's own window. It
   works through Claude Code hooks: turning it on adds `claude_hook.py` to `~/.claude/settings.json` (a backup of
   the file is kept), turning it off removes it; the hook does nothing while the widget isn't running
+- ✨ **Claude小姐 (Miss Claude)**: her orange starburst button opens a chat in her balloon. What you type runs as
+  a Claude Code task (the `claude` command line, signed in as you) in the project folder you pick; you see what
+  Claude is doing, then the answer. Follow-ups continue the same conversation; "New chat" starts over, "Stop"
+  ends a run. Permission requests from these runs come to her balloon too (with 🤖 Claude watching turned on)
+- 🌀 **Codex**: the same chat, run by OpenAI's Codex (`codex exec`, signed in as you with the model and settings
+  of `~/.codex/config.toml`; the command line inside the ChatGPT app is found by itself). Codex can't ask for
+  permission in such a run, so it works in its sandbox: it may change files in the folder you picked, nowhere
+  else, and has no network. `"codex": {"sandbox": "read-only"}` in `config.json` makes it look-only.
 - 📊 **System monitor**: CPU, memory, download and upload as candlestick charts (5 s – 1 min per candle,
   red-up or green-up colors)
 - 🔌 **USB**: lists what's plugged in over USB and the driver running each device (bundle, version, kext or
@@ -185,7 +193,7 @@ Many Amazon emails only contain a "Track package" button with no number. Add tho
 | `power.py` | Sleep / wake of the computer (macOS) |
 | `mailread.py` | Reading the inbox: Apple Mail (JavaScript for Automation), Outlook (Microsoft Graph, device code sign-in), the first sort |
 | `claude_hook.py` | Claude Code hook: hands Claude's events to her over a local socket, returns your answer |
-| `features/` | The character's jobs: `parcels.py`, `mail.py`, `claude.py`, `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
+| `features/` | The character's jobs: `parcels.py`, `mail.py`, `claude.py`, `codex.py` (both chats: `chat.py`), `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
 | `usbscan.py` | USB devices, their drivers and the printers (macOS: ioreg, kmutil, CUPS) |
 | `instance.py` | Which copy this is: one already open → go to it or open another; each copy's data folder |
 | `airprint.py` | The printer list grouped by printer, one-click AirPrint, duplicates (macOS: CUPS lpadmin, ipptool) |

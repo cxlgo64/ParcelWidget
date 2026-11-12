@@ -25,7 +25,7 @@ import time
 
 from core import HERE, log, save_config
 
-from . import Feature
+from .chat import Chat, summary as _summary, which
 
 import instance
 
@@ -33,12 +33,19 @@ SOCK = os.environ.get("PARCELWIDGET_CLAUDE_SOCK") or os.path.join(instance.BASE,
 HOOK_DST = os.path.join(instance.BASE, "claude_hook.py")
 SETTINGS = os.path.expanduser("~/.claude/settings.json")
 WAITS = [60, 120, 300, 600]
+# Claude小姐's runs: which model, how hard it thinks, how much it can keep in mind
+MODELS = ["default", "fable", "opus", "sonnet", "haiku"]
+EFFORTS = ["default", "low", "medium", "high", "xhigh", "max"]
+CONTEXTS = ["default", "1m"]
+NO_1M = ("default", "haiku")       # 1M context needs a chosen model that has it
 CHOICE_WAIT = 120     # Claude's turn stays open this long for a pick from its end-of-turn buttons
 WRAP = "mcp__ccd_turn__wrap_up"         # the Claude desktop app's end-of-turn summary
 
 L = {
-    "en": {"settings": "Claude Settings…", "on": "Watching Claude Code", "off": "Not watching Claude Code"},
-    "zh": {"settings": "Claude 设置…", "on": "正在关注 Claude Code", "off": "没有关注 Claude Code"},
+    "en": {"settings": "Claude Settings…", "on": "Watching Claude Code", "off": "Not watching Claude Code",
+           "ask": "Ask Claude…"},
+    "zh": {"settings": "Claude 设置…", "on": "正在关注 Claude Code", "off": "没有关注 Claude Code",
+           "ask": "跟 Claude 说…"},
 }
 
 
@@ -136,17 +143,58 @@ def uninstall():
     _write_settings(d)
 
 
-def _summary(text, n=600):
-    t = (text or "").strip()
-    return t if len(t) <= n else t[:n].rsplit(" ", 1)[0] + "…"
+def _reset_at(text):
+    """'Nov 12 at 1:09am (America/New_York)' -> epoch seconds (None if it reads differently)"""
+    import datetime
+    import re
+    m = re.match(r"\s*([A-Za-z]{3}) (\d{1,2})(?: at (\d{1,2})(?::(\d{2}))? ?([ap]m))?\s*(?:\(([^)]+)\))?", text or "")
+    if not m:
+        return None
+    mon, day, hh, mm, ap, tz = m.groups()
+    try:
+        from zoneinfo import ZoneInfo
+        zone = ZoneInfo(tz) if tz else None
+        now = datetime.datetime.now(zone)
+        h = (int(hh) % 12 + (12 if ap == "pm" else 0)) if hh else 0
+        d = datetime.datetime.strptime("%s %s %d" % (mon, day, now.year), "%b %d %Y").replace(
+            hour=h, minute=int(mm or 0), tzinfo=zone)
+        if d < now - datetime.timedelta(days=180):       # December -> January
+            d = d.replace(year=now.year + 1)
+        return d.timestamp()
+    except Exception:
+        return None
 
 
-class Claude(Feature):
+def parse_usage(text):
+    """the limits lines of `claude /usage`:
+        Current session: 70% used · resets Nov 12 at 1:09am (America/New_York)
+        Current week (all models): 19% used · resets Nov 13 at 6:59am (America/New_York)
+        Current week (Fable): 9% used · ..."""
+    import re
+    out, more = {}, []
+    for ln in (text or "").splitlines():
+        m = re.match(r"\s*Current (session|week)(?: \(([^)]*)\))?\s*:\s*(\d+(?:\.\d+)?)% used(?:\s*·\s*resets (.+))?", ln)
+        if not m:
+            continue
+        kind, which, pct, rs = m.groups()
+        w = {"pct": float(pct), "resets": _reset_at(rs), "resets_text": re.sub(r"\s*\([^)]*\)\s*$", "", rs or "")}
+        if kind == "session":
+            out["five"] = w
+        elif not which or which == "all models":
+            out["week"] = w
+        else:
+            more.append(dict(w, name=which))
+    if more:
+        out["more"] = more[:3]
+    return out
+
+
+class Claude(Chat):
     id = "claude"
-    icon = "🤖"
-    name = "Claude"
-    name_zh = "Claude"
-    hover = False
+    icon = "🤖"                 # the hover button draws an orange starburst instead (ui/index.html FICONS)
+    name = "Miss Claude"
+    name_zh = "Claude小姐"
+    hover = True
 
     def __init__(self, app):
         super().__init__(app)
@@ -155,6 +203,9 @@ class Claude(Feature):
         self._pending = {}            # report id -> {"sid", "tool", "call", "answer", "conn"}
         self._plock = threading.Lock()
         self.listening = False
+        self.usage = None             # your 5-hour and weekly limits, from `claude /usage`
+        self._usage_ts = 0
+        self._usage_busy = False
 
     def _c(self, k, default):
         v = self.cfg.get(k)
@@ -251,6 +302,13 @@ class Claude(Feature):
         sid = ev.get("session_id") or ""
         project = os.path.basename((ev.get("cwd") or "").rstrip("/")) or "Claude"
         rep = self.app.reports
+        cwd = ev.get("cwd") or ""
+        if cwd and cwd not in self._seen_cwds and not ev.get("run"):
+            self._seen_cwds = ([cwd] + self._seen_cwds)[:6]
+        if name in ("Stop", "StopFailure"):
+            self.usage_refresh(60)       # a turn used some of your limits
+        if ev.get("run") and name in ("Stop", "StopFailure", "Notification"):
+            return False                 # her own runs: the chat in her balloon shows how it went
         if name == "PostToolUse":
             if ev.get("tool_name") == WRAP:
                 ti = ev.get("tool_input") or {}
@@ -303,12 +361,14 @@ class Claude(Feature):
             return False
         if name == "PermissionRequest" and conn and self._c("permissions", True):
             data = {"sid": sid, "project": project, "tool": ev.get("tool_name") or "",
-                    "input": ev.get("tool_input") or {}, "always": bool(ev.get("permission_suggestions"))}
+                    "input": ev.get("tool_input") or {}, "always": bool(ev.get("permission_suggestions")),
+                    "run": bool(ev.get("run"))}      # from a task you typed in her chat: shown big (battle mode)
             return self._ask(conn, "permission", data, ev)
         if name == "PreToolUse" and ev.get("tool_name") == "AskUserQuestion" and conn and self._c("questions", True):
             qs = (ev.get("tool_input") or {}).get("questions") or []
             if qs:
-                return self._ask(conn, "question", {"sid": sid, "project": project, "questions": qs}, ev)
+                return self._ask(conn, "question", {"sid": sid, "project": project, "questions": qs,
+                                                    "run": bool(ev.get("run"))}, ev)
         return False
 
     def _attention(self):
@@ -399,24 +459,117 @@ class Claude(Feature):
         subprocess.Popen(["open", "-a", "Claude"])
         return True
 
-    # ---------- settings ----------
-    def state(self):
-        return {"listening": self.listening}
 
+    # ---------- Claude小姐: type a task in her balloon (the chat itself is in features/chat.py) ----------
+    def _bin(self):
+        return which("claude")
+
+    def _cmd(self, b, turn, cwd):
+        cmd = [b, "-p", turn["q"], "--output-format", "stream-json", "--verbose"]
+        o = self.run_opts()
+        if o["model"] != "default":
+            cmd += ["--model", o["model"] + ("[1m]" if o["context"] == "1m" else "")]
+        if o["effort"] != "default":
+            cmd += ["--effort", o["effort"]]
+        if self.chat.get("sid"):
+            cmd += ["--resume", self.chat["sid"]]
+        return cmd
+
+    def _env(self, b):
+        return dict(super()._env(b), PARCELWIDGET_RUN="1")     # the hook marks these runs as hers
+
+    def _on_stream(self, m, turn):
+        t = m.get("type")
+        if m.get("session_id"):
+            self.chat["sid"] = m["session_id"]
+        if t == "assistant":
+            for c in (m.get("message") or {}).get("content") or []:
+                if c.get("type") == "tool_use":
+                    i = c.get("input") or {}
+                    what = i.get("description") or i.get("command") or i.get("file_path") or i.get("pattern") \
+                        or i.get("url") or i.get("query") or ""
+                    turn["step"] = ("%s: %s" % (c.get("name"), what))[:160] if what else c.get("name", "")
+                elif c.get("type") == "text" and c.get("text", "").strip():
+                    turn["step"] = c["text"].strip().splitlines()[0][:160]
+        elif t == "result":
+            turn["a"] = m.get("result") or ""
+            turn["st"] = "error" if m.get("is_error") else "done"
+
+    # ---------- your plan's limits (the battery in her balloon) ----------
+    def api_opened(self):
+        self.usage_refresh(30)
+        return super().api_opened()
+
+    def usage_refresh(self, min_age=60):
+        """ask `claude -p /usage` again (a local command: no tokens) unless it's fresher than min_age s"""
+        b = self._bin()
+        if not b or self._usage_busy or time.time() - self._usage_ts < min_age:
+            return
+        self._usage_busy = True
+        threading.Thread(target=self._usage_fetch, args=(b,), daemon=True).start()
+
+    def _usage_fetch(self, b):
+        import subprocess
+        try:
+            r = subprocess.run([b, "-p", "/usage", "--output-format", "json", "--no-session-persistence"],
+                               cwd=os.path.expanduser("~"), env=self._env(b), stdin=subprocess.DEVNULL,
+                               capture_output=True, text=True, timeout=60)
+            u = parse_usage((json.loads(r.stdout or "{}") or {}).get("result") or "")
+            if u:
+                self.usage = dict(u, ts=time.time())
+                self.app.push_soon()
+            else:
+                log("claude: /usage said nothing about limits")
+        except Exception as e:
+            log("claude: /usage failed %r" % type(e).__name__)
+        finally:
+            self._usage_ts = time.time()
+            self._usage_busy = False
+
+    def run_opts(self):
+        o = {"model": self.cfg.get("model"), "effort": self.cfg.get("effort"), "context": self.cfg.get("context")}
+        o["model"] = o["model"] if o["model"] in MODELS else "default"
+        o["effort"] = o["effort"] if o["effort"] in EFFORTS else "default"
+        o["context"] = o["context"] if o["context"] in CONTEXTS and o["model"] not in NO_1M else "default"
+        return o
+
+    def set_opts(self, s):
+        for k, ok in (("model", MODELS), ("effort", EFFORTS), ("context", CONTEXTS)):
+            if s.get(k) in ok:
+                self.cfg[k] = s[k]
+
+    def api_set_opt(self, key, value):
+        """the pickers in her balloon (takes effect from the next message)"""
+        self.set_opts({key: value})
+        save_config(self.app.cfg)
+        return self.run_opts()
+
+    def state(self):
+        if self.viewing:
+            self.usage_refresh(300)
+        return dict(self.chat_state(), listening=self.listening, usage=self.usage, opts=self.run_opts(),
+                    choices={"model": MODELS, "effort": EFFORTS, "context": CONTEXTS, "no_1m": list(NO_1M)})
+
+    # ---------- settings ----------
     def menu(self, lang):
         T = L.get(lang, L["en"])
         return [{"title": T["on"] if self.listening else T["off"], "info": True},
                 {"sep": True},
+                {"title": T["ask"], "key": "claude:show"},
                 {"title": T["settings"], "key": "claude:settings"}]
 
     def handle(self, action, arg=""):
         if action == "settings":
             self.app.open_settings("claude")
+        elif action == "show":
+            self.app.show_window()
+            self.app.page_call("openFeature('claude')")
 
     def get_settings(self):
         return {"enabled": bool(self.cfg.get("enabled")), "installed": installed(), "listening": self.listening,
                 "done": bool(self._c("done", True)), "permissions": bool(self._c("permissions", True)),
                 "questions": bool(self._c("questions", True)), "wait": self.wait(), "waits": WAITS,
+                "opts": self.run_opts(), "models": MODELS, "efforts": EFFORTS, "contexts": CONTEXTS, "no_1m": list(NO_1M),
                 "settings_path": SETTINGS.replace(os.path.expanduser("~"), "~")}
 
     def save_settings(self, s):
@@ -424,6 +577,7 @@ class Claude(Feature):
         for k in ("done", "permissions", "questions"):
             if k in s:
                 c[k] = bool(s[k])
+        self.set_opts(s)
         if int(s.get("wait") or 0) in WAITS:
             c["wait"] = int(s["wait"])
         if "enabled" in s and bool(s["enabled"]) != bool(c.get("enabled")):
