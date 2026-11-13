@@ -41,6 +41,10 @@ class Feature:
     def tick(self, now):
         pass
 
+    def stop(self):
+        """turned off in Settings → Features (start() runs again if it's turned back on)"""
+        pass
+
     def sleep(self):
         pass
 
@@ -63,16 +67,19 @@ class Feature:
         self.cfg.update(s)
 
     def info(self):
-        return {"id": self.id, "icon": self.icon, "name": self.name, "name_zh": self.name_zh, "hover": self.hover}
+        hidden = self.id in (self.app.cfg.get("features_hidden") or [])
+        return {"id": self.id, "icon": self.icon, "name": self.name, "name_zh": self.name_zh,
+                "hover": self.hover and not hidden, "available": True}
 
 
 def make_features(app):
     from .claude import Claude
     from .codex import Codex
+    from .github import GitHub
     from .mail import Mail
     from .parcels import Parcels
     from .poke import Poke
     from .sysmon import SysMon
     from .usb import USB
     # order = order of her hover buttons and of the menus
-    return [Parcels(app), Mail(app), SysMon(app), USB(app), Claude(app), Codex(app), Poke(app)]
+    return [Parcels(app), Mail(app), SysMon(app), USB(app), Claude(app), Codex(app), GitHub(app), Poke(app)]

@@ -1,8 +1,10 @@
-"""Make packaging/icon.icns from the bundled skin's first idle frame (macOS: needs iconutil)."""
+"""Make the app icon from the bundled skin's first idle frame: packaging/icon.icns on macOS
+(needs iconutil), packaging/icon.ico on Windows; icon.png on both."""
 import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from PIL import Image, ImageDraw
@@ -33,6 +35,13 @@ def main():
     frame.thumbnail((box, box), Image.LANCZOS)
     icon.alpha_composite(frame, ((S - frame.width) // 2, (S - frame.height) // 2 + 10))
 
+    icon.save(os.path.join(HERE, "icon.png"))
+    if sys.platform != "darwin":
+        out = os.path.join(HERE, "icon.ico")
+        icon.save(out, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+        print("wrote", out)
+        return
+
     tmp = tempfile.mkdtemp()
     iconset = os.path.join(tmp, "icon.iconset")
     os.makedirs(iconset)
@@ -41,7 +50,6 @@ def main():
         icon.resize((size * 2, size * 2), Image.LANCZOS).save(os.path.join(iconset, "icon_%dx%d@2x.png" % (size, size)))
     out = os.path.join(HERE, "icon.icns")
     subprocess.run(["iconutil", "-c", "icns", iconset, "-o", out], check=True)
-    icon.save(os.path.join(HERE, "icon.png"))
     shutil.rmtree(tmp)
     print("wrote", out)
 

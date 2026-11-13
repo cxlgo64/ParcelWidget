@@ -1,4 +1,5 @@
-"""Mail: a first look at what's in your inboxes (Apple Mail, and Outlook if you sign in).
+"""Mail: a first look at what's in your inboxes (Apple Mail - on Windows the classic Outlook -
+and Outlook through Microsoft if you sign in).
 
 She reads the newest inbox mail (subject and sender, nothing is changed or marked read) and
 sorts it: important / the rest / can skip (see mailread.screen()). Clicking a message opens it
@@ -23,7 +24,7 @@ import threading
 import time
 
 import mailread
-from core import load_memory, log, save_config, save_memory
+from core import IS_WIN, load_memory, log, save_config, save_memory
 
 from . import Feature
 
@@ -340,15 +341,20 @@ class Mail(Feature):
         if not m:
             return False
         if m["src"] == "apple":
-            mailread.apple_open(m["mid"])
+            threading.Thread(target=mailread.apple_open, args=(m["mid"],), daemon=True).start()
         elif m.get("url"):
             import webbrowser
             webbrowser.open(m["url"])
         return True
 
     def api_open_mail_app(self):
-        mailread.open_apple_mail()
-        threading.Timer(6, lambda: self._go(manual=True)).start()
+        try:
+            mailread.open_apple_mail()
+        except mailread.MailError as e:
+            self.apple = {"st": "error", "err": str(e)}
+            self.app.push_soon()
+            return False
+        threading.Timer(15 if IS_WIN else 6, lambda: self._go(manual=True)).start()     # Outlook takes its time
         return True
 
     def api_open_sign_in_page(self):

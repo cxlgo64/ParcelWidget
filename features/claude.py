@@ -1,7 +1,9 @@
-"""Claude: she keeps an eye on Claude Code for you (macOS).
+"""Claude: she keeps an eye on Claude Code for you (macOS and Windows).
 
 Claude Code hooks (claude_hook.py, installed from Settings → 🤖 Claude into
-~/.claude/settings.json) hand her what Claude is doing over a local socket:
+~/.claude/settings.json) hand her what Claude is doing over a local socket (Windows has no
+such sockets in Python: there it's a port on this PC only, 127.0.0.1, and the hook has to show
+a password that sits in your own data folder, claude.port):
   - Claude finished       -> a balloon: which project, and how it went (the summary Claude wrote)
   - Claude failed         -> a balloon with the error
   - Claude needs you      -> a balloon pointing you back to Claude
@@ -20,18 +22,22 @@ import os
 import select
 import shutil
 import socket
+import sys
 import threading
 import time
 
-from core import HERE, log, save_config
+import plat
+from core import FROZEN, HERE, HIDE, IS_WIN, log, save_config
 
 from .chat import Chat, summary as _summary, which
 
 import instance
 
 SOCK = os.environ.get("PARCELWIDGET_CLAUDE_SOCK") or os.path.join(instance.BASE, "claude.sock")
+PORT_FILE = os.environ.get("PARCELWIDGET_CLAUDE_PORT") or os.path.join(instance.BASE, "claude.port")   # Windows
 HOOK_DST = os.path.join(instance.BASE, "claude_hook.py")
-SETTINGS = os.path.expanduser("~/.claude/settings.json")
+HOOK_EXE = "ParcelWidgetHook.exe"       # Windows, packaged app: the hook as a program of its own
+SETTINGS = os.path.join(os.path.expanduser("~"), ".claude", "settings.json")
 WAITS = [60, 120, 300, 600]
 # Claude小姐's runs: which model, how hard it thinks, how much it can keep in mind
 MODELS = ["default", "fable", "opus", "sonnet", "haiku"]
@@ -54,11 +60,20 @@ def _hook_src():
 
 
 def hook_command():
-    return '/usr/bin/python3 "%s"' % HOOK_DST
+    if not IS_WIN:
+        return '/usr/bin/python3 "%s"' % HOOK_DST
+    # forward slashes: Claude Code runs hooks through Git Bash or PowerShell, both take them
+    if FROZEN:      # no Python on the PC for sure: the hook program next to the widget's
+        return '"%s"' % os.path.join(os.path.dirname(sys.executable), HOOK_EXE).replace("\\", "/")
+    py = sys.executable
+    if os.path.basename(py).lower() == "pythonw.exe" and os.path.exists(py[:-5] + ".exe"):
+        py = py[:-5] + ".exe"           # python.exe: the one that talks through pipes for sure
+    return '"%s" "%s"' % (py.replace("\\", "/"), HOOK_DST.replace("\\", "/"))
 
 
 def _ours(h):
-    return "claude_hook.py" in str((h or {}).get("command", "")) and "ParcelWidget" in str(h.get("command", ""))
+    c = str((h or {}).get("command", ""))
+    return ("claude_hook.py" in c and "ParcelWidget" in c) or HOOK_EXE in c
 
 
 def _hooks_wanted():
@@ -199,6 +214,7 @@ class Claude(Chat):
     def __init__(self, app):
         super().__init__(app)
         self._srv = None
+        self._token = None            # Windows: what the hook has to show (see _listen_tcp)
         self._wrap = {}               # session -> {"recap", "ask"} from the desktop app's wrap-up
         self._pending = {}            # report id -> {"sid", "tool", "call", "answer", "conn"}
         self._plock = threading.Lock()
@@ -228,6 +244,8 @@ class Claude(Chat):
     def _listen(self):
         if self._srv:
             return
+        if IS_WIN:
+            return self._listen_tcp()
         if os.path.exists(SOCK):
             try:
                 c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -253,6 +271,34 @@ class Claude(Chat):
         threading.Thread(target=self._accept, args=(srv,), daemon=True).start()
         log("claude: listening for Claude Code")
 
+    def _listen_tcp(self):
+        """Windows: a port on this PC only; claude.port tells the hook which, and the password"""
+        import secrets
+        try:
+            with open(PORT_FILE, encoding="utf-8") as f:
+                port = int(json.load(f)["port"])
+            c = socket.create_connection(("127.0.0.1", port), timeout=1)
+            c.close()
+            log("claude: another copy is already listening")
+            return
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(16)
+        self._token = secrets.token_hex(16)
+        tmp = PORT_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"port": srv.getsockname()[1], "token": self._token}, f)
+        os.replace(tmp, PORT_FILE)
+        self._srv = srv
+        self.listening = True
+        threading.Thread(target=self._accept, args=(srv,), daemon=True).start()
+        log("claude: listening for Claude Code")
+
+    def stop(self):
+        self._stop()             # turned off: stop listening (the hooks then do nothing)
+
     def _stop(self):
         srv, self._srv = self._srv, None
         self.listening = False
@@ -262,7 +308,7 @@ class Claude(Chat):
             except OSError:
                 pass
             try:
-                os.unlink(SOCK)
+                os.unlink(PORT_FILE if IS_WIN else SOCK)
             except OSError:
                 pass
 
@@ -286,6 +332,10 @@ class Claude(Chat):
                     break
                 buf += chunk
             ev = json.loads(buf.decode("utf-8") or "{}")
+            if IS_WIN:      # any program on this PC can reach the port: only the hook knows the password
+                import hmac
+                if not hmac.compare_digest(str(ev.pop("token", "")), self._token or "-"):
+                    return
             keep = self.on_event(ev, conn)
         except Exception as e:
             log("claude: bad event %r" % e)
@@ -300,7 +350,7 @@ class Claude(Chat):
         """True if the connection was kept (waiting for your answer)"""
         name = ev.get("hook_event_name") or ""
         sid = ev.get("session_id") or ""
-        project = os.path.basename((ev.get("cwd") or "").rstrip("/")) or "Claude"
+        project = plat.base_name(ev.get("cwd") or "") or "Claude"
         rep = self.app.reports
         cwd = ev.get("cwd") or ""
         if cwd and cwd not in self._seen_cwds and not ev.get("run"):
@@ -456,7 +506,13 @@ class Claude(Chat):
 
     def api_open_claude(self):
         import subprocess
-        subprocess.Popen(["open", "-a", "Claude"])
+        try:
+            if IS_WIN:
+                plat.open_path("claude://")        # the desktop app registers this address
+            else:
+                subprocess.Popen(["open", "-a", "Claude"])
+        except OSError:
+            return False
         return True
 
 
@@ -464,8 +520,11 @@ class Claude(Chat):
     def _bin(self):
         return which("claude")
 
+    def _stdin(self, turn):
+        return turn["q"] if IS_WIN else None        # see Chat._stdin
+
     def _cmd(self, b, turn, cwd):
-        cmd = [b, "-p", turn["q"], "--output-format", "stream-json", "--verbose"]
+        cmd = [b, "-p"] + ([] if IS_WIN else [turn["q"]]) + ["--output-format", "stream-json", "--verbose"]
         o = self.run_opts()
         if o["model"] != "default":
             cmd += ["--model", o["model"] + ("[1m]" if o["context"] == "1m" else "")]
@@ -513,7 +572,7 @@ class Claude(Chat):
         try:
             r = subprocess.run([b, "-p", "/usage", "--output-format", "json", "--no-session-persistence"],
                                cwd=os.path.expanduser("~"), env=self._env(b), stdin=subprocess.DEVNULL,
-                               capture_output=True, text=True, timeout=60)
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, **HIDE)
             u = parse_usage((json.loads(r.stdout or "{}") or {}).get("result") or "")
             if u:
                 self.usage = dict(u, ts=time.time())
@@ -570,7 +629,7 @@ class Claude(Chat):
                 "done": bool(self._c("done", True)), "permissions": bool(self._c("permissions", True)),
                 "questions": bool(self._c("questions", True)), "wait": self.wait(), "waits": WAITS,
                 "opts": self.run_opts(), "models": MODELS, "efforts": EFFORTS, "contexts": CONTEXTS, "no_1m": list(NO_1M),
-                "settings_path": SETTINGS.replace(os.path.expanduser("~"), "~")}
+                "settings_path": plat.home_short(SETTINGS)}
 
     def save_settings(self, s):
         c = self.cfg

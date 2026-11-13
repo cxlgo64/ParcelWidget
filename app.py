@@ -4,8 +4,8 @@
 - Her jobs are features (features/): parcel tracking, a system monitor, poke, ... Each one
   runs at launch and reports in her balloon; you confirm the report and it goes on in the
   background on its own schedule, speaking up again only when something changes.
-- Idle: hover over her for a button per feature; right-click her (or use the menu bar icon)
-  for the menu (menus.py); detailed settings live in a separate window (ui/settings.html).
+- Idle: hover over her for a button per feature; right-click her (or use the menu bar icon;
+  on Windows the tray icon) for the menu (menus.py); detailed settings live in a separate window (ui/settings.html).
 """
 import os
 import sys
@@ -13,7 +13,17 @@ import threading
 import time
 import traceback
 
-import webview
+if __name__ == "__main__" and "--claude-hook" in sys.argv:
+    # Windows, packaged app: Claude Code runs the widget's own program as its hook (there may be
+    # no Python on the PC). Pass the event on and leave, before anything of the widget starts.
+    import claude_hook
+    try:
+        claude_hook.main()
+    except Exception:
+        pass
+    os._exit(0)
+
+import webview  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -23,7 +33,7 @@ if __name__ == "__main__":
     import instance
     instance.choose()
 
-from core import (APP_DIR, IS_MAC, LOG_PATH, PROFILE, SIZE_PRESETS, SKINS_DIR, UI_DIR, later, list_skins, load_config,  # noqa: E402,F401
+from core import (APP_DIR, IS_MAC, IS_WIN, LOG_PATH, PROFILE, SIZE_PRESETS, SKINS_DIR, UI_DIR, later, list_skins, load_config,  # noqa: E402,F401
                   log, preset, save_config, trim_log)
 from features import make_features  # noqa: E402
 from reports import Reports  # noqa: E402
@@ -37,7 +47,7 @@ class App:
         vault.LANG = self.cfg.get("lang", "en")
         self.window = None            # the character
         self.settings_window = None   # the settings popup, while open
-        self.menubar = None           # menu bar icon (macOS), see menubar.py
+        self.menubar = None           # menu bar icon (macOS, menubar.py) / tray icon (Windows, wintray.py)
         self.visible = True
         self.closing = False
         self.skin_job = None          # custom skin being generated: {"step", "total", "label", "error", "id", "done"}
@@ -47,13 +57,55 @@ class App:
         self._push_at = 0
         self._push_timer = None
         self.reports = Reports(on_change=self.push_soon)
-        self.features = make_features(self)
+        self.all_features = make_features(self)
         if not any(s["id"] == self.cfg.get("skin") for s in list_skins()):
             skins = list_skins()
             self.cfg["skin"] = skins[0]["id"] if skins else ""
 
+    # ---------- which features are on, in which order (Settings → Features) ----------
+    @property
+    def features(self):
+        """the features that are on, in your order (the ones you turned off don't run at all)"""
+        off = set(self.cfg.get("features_off") or [])
+        order = self.cfg.get("features_order") or []
+        fs = [f for f in self.all_features if f.id not in off]
+        return sorted(fs, key=lambda f: order.index(f.id) if f.id in order else len(order) + self.all_features.index(f))
+
     def feature(self, fid):
         return next((f for f in self.features if f.id == fid), None)
+
+    def features_list(self):
+        off, hidden = set(self.cfg.get("features_off") or []), set(self.cfg.get("features_hidden") or [])
+        on = self.features
+        rest = [f for f in self.all_features if f not in on]
+        return [{"id": f.id, "icon": f.icon, "name": f.name, "name_zh": f.name_zh, "on": f.id not in off,
+                 "shown": f.id not in hidden, "can_show": bool(type(f).hover and f.info().get("available", True))}
+                for f in on + rest]
+
+    def set_features(self, items):
+        """[{id, on, shown}] in the order you want them"""
+        known = {f.id: f for f in self.all_features}
+        items = [i for i in items or [] if isinstance(i, dict) and i.get("id") in known]
+        before = {f.id for f in self.features}
+        self.cfg["features_order"] = [i["id"] for i in items]
+        self.cfg["features_off"] = [i["id"] for i in items if not i.get("on", True)]
+        self.cfg["features_hidden"] = [i["id"] for i in items if not i.get("shown", True)]
+        save_config(self.cfg)
+        after = {f.id for f in self.features}
+        for fid in before - after:
+            try:
+                known[fid].stop()
+                log("feature %s turned off" % fid)
+            except Exception:
+                log(traceback.format_exc())
+        for fid in after - before:
+            try:
+                known[fid].start()
+                log("feature %s turned on" % fid)
+            except Exception:
+                log(traceback.format_exc())
+        self.push_soon()
+        return True
 
     # ---------- background ----------
     def loop(self):
@@ -115,8 +167,7 @@ class App:
     def open_settings(self, tab="general"):
         tab = tab.replace("'", "")
         if self.menubar:
-            from menubar import activate
-            activate()
+            _shell().activate()
         w = self.settings_window
         if w:
             later(w.show, 0)
@@ -126,7 +177,7 @@ class App:
         w = webview.create_window(
             "设置 · 快递小组件" if lang == "zh" else "Parcel Widget Settings",
             os.path.join(UI_DIR, "settings.html") + "#" + tab,
-            js_api=self.api, width=520, height=600, min_size=(440, 420))
+            js_api=self.api, width=780, height=600, min_size=(640, 420))   # sidebar + page, like System Settings
         self.settings_window = w
 
         def closed():
@@ -135,6 +186,8 @@ class App:
 
     def quit(self):
         self.closing = True
+        if IS_WIN and self.menubar:
+            self.menubar._ui(self.menubar.remove)     # or the tray icon stays behind until the mouse touches it
 
         def _close():
             for w in (self.settings_window, self.window):
@@ -165,7 +218,8 @@ class App:
         self._push_at = time.time()
         if self.menubar:
             try:
-                self.menubar.set_count(*self.feature("parcels").counts())
+                p = self.feature("parcels")          # None when Parcels is turned off (Settings → Features)
+                self.menubar.set_count(*(p.counts() if p else (0, 0)))
             except Exception as ex:
                 log("menubar error %r" % ex)
         # don't talk to the windows while closing, or both sides wait on each other
@@ -194,7 +248,8 @@ class Api:
         return {
             "lang": c.get("lang", "en"),
             "on_top": bool(c.get("always_on_top")),
-            "touch_id": bool(c.get("touch_id", True)) if IS_MAC else None,
+            "os": "win" if IS_WIN else "mac" if IS_MAC else "other",
+            "touch_id": bool(c.get("touch_id", True)) if (IS_MAC or IS_WIN) else None,
             "unlocked": _vault().is_unlocked(),
             "size_preset": str(c.get("size_preset", "14")),
             "zoom": p["zoom"], "max_h": p["h"], "base_w": p["w"],
@@ -217,6 +272,12 @@ class Api:
 
     def ack_report(self, rid):
         return self.a.reports.ack(rid)
+
+    def get_features(self):
+        return self.a.features_list()
+
+    def save_features(self, items):
+        return self.a.set_features(items)
 
     # ---------- settings ----------
     def get_settings(self):
@@ -517,16 +578,16 @@ class Api:
         return True
 
     def reveal_log(self):
-        import subprocess
-        if IS_MAC:
-            subprocess.Popen(["open", "-R", LOG_PATH])
-        elif sys.platform == "win32":
-            subprocess.Popen(["explorer", "/select,", LOG_PATH])
+        import plat
+        plat.reveal(LOG_PATH)
         return True
 
     def open_url(self, url):
-        import webbrowser
-        webbrowser.open(url)
+        import plat
+        if IS_WIN and str(url).startswith("ms-settings:"):
+            plat.open_path(url)          # a page of Windows Settings
+        else:
+            plat.open_url(url)
 
     def hide(self):
         if self.a.menubar:
@@ -543,13 +604,21 @@ def _vault():
     return vault
 
 
+def _shell():
+    """the module with this system's icon: the menu bar (macOS) or the tray (Windows)"""
+    if IS_WIN:
+        import wintray
+        return wintray
+    import menubar
+    return menubar
+
+
 def instance_listen(app):
     """another launch chose "Go to it": come to the front"""
     import instance
 
     def show():
-        import menubar
-        menubar.activate()
+        _shell().activate()
         app.show_window()
         if app.settings_window:
             later(app.settings_window.show, 0)
@@ -572,6 +641,7 @@ def main():
         height=int(p["w"] * 0.7),   # the page resizes the window to fit her and her balloon
         min_size=(60, 60),
         frameless=True,
+        resizable=False,            # the page sizes the window itself; no handle to drag her away
         easy_drag=False,
         on_top=bool(app.cfg.get("always_on_top")),
         transparent=True,
@@ -602,7 +672,25 @@ def main():
         except Exception as ex:
             app.menubar = None
             log("menu bar icon unavailable: %r" % ex)
+    elif IS_WIN:
+        # live in the notification area (tray) instead of the taskbar
+        try:
+            import power
+            import wintray
+            app.menubar = wintray.Tray(app)
+
+            def started():
+                win.events.shown.wait(30)      # the tray icon hangs on the character's window
+                app.menubar.install()
+                power.watch(app.on_sleep, app.on_wake)
+                instance_listen(app)
+                app.push()
+        except Exception as ex:
+            app.menubar = None
+            log("tray icon unavailable: %r" % ex)
     webview.start(started)
+    if IS_WIN and app.menubar:
+        app.menubar.remove()
     os._exit(0)  # exit right away once the window is gone; all data is already saved
 
 

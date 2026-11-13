@@ -4,19 +4,33 @@
 <meta charset="utf-8">
 <title>Settings</title>
 <style>
-:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e3e3e8;--accent:#0a84ff;--err:#c4372c;--chip:#ececf1;--green:#2f9e5b}
+/* Windows draws wide grey scrollbars: thin ones, like the Mac's */
+html.win ::-webkit-scrollbar{width:8px;height:8px}
+html.win ::-webkit-scrollbar-track{background:transparent}
+html.win ::-webkit-scrollbar-thumb{background:rgba(128,128,128,.45);border-radius:4px}
+:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e3e3e8;--accent:#0a84ff;--err:#c4372c;--chip:#ececf1;--green:#2f9e5b;
+  --side:#ebebef;--hov:#0000000f}
 @media (prefers-color-scheme: dark){
-  :root{--bg:#1c1c1e;--card:#2c2c2e;--text:#f2f2f7;--muted:#9a9aa0;--line:#3a3a3c;--err:#ff6b5e;--chip:#3a3a3c}
+  :root{--bg:#1c1c1e;--card:#2c2c2e;--text:#f2f2f7;--muted:#9a9aa0;--line:#3a3a3c;--err:#ff6b5e;--chip:#3a3a3c;--side:#242426;--hov:#ffffff14}
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
   font:13px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Segoe UI","Microsoft YaHei",sans-serif}
-body{display:flex;flex-direction:column}
-nav{display:flex;gap:2px;padding:10px 10px 0;border-bottom:1px solid var(--line);flex:none;overflow-x:auto;scrollbar-width:none}
-nav button{border:0;background:none;color:var(--muted);padding:7px 9px;white-space:nowrap;flex:none;border-radius:8px 8px 0 0;font-size:13px;cursor:pointer;
-  border-bottom:2px solid transparent;margin-bottom:-1px}
-nav button.on{color:var(--text);font-weight:600;border-bottom-color:var(--accent)}
-main{flex:1;overflow-y:auto;padding:4px 18px 24px}
+/* like macOS System Settings: a sidebar of pages on the left, the page on the right */
+body{display:flex;flex-direction:row}
+nav{width:210px;flex:none;overflow-y:auto;padding:12px 10px;background:var(--side);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;gap:1px}
+nav .grp{height:10px;flex:none}
+nav button{display:flex;align-items:center;gap:8px;border:0;background:none;color:var(--text);padding:4px 8px;border-radius:7px;
+  font-size:13px;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}
+nav button:hover{background:var(--hov)}
+nav button.on{background:var(--accent);color:#fff}
+nav .ni{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;
+  box-shadow:inset 0 0 0 .5px #0002}
+main{flex:1;overflow-y:auto;padding:0 26px 28px;min-width:0}
+.ptitle{position:sticky;top:0;z-index:5;background:var(--bg);margin:0 -26px;padding:16px 26px 10px;font-size:17px;font-weight:700;
+  border-bottom:1px solid transparent}
+.ptitle.lift{border-bottom-color:var(--line)}
 .tab{display:none}.tab.on{display:block}
 .section{margin:16px 0 6px;font-size:12.5px;font-weight:700}
 label{display:block;margin:9px 0 3px;color:var(--muted);font-size:12px}
@@ -24,6 +38,14 @@ input[type=text],input[type=password],input[type=number],input[type=time],select
   background:var(--card);color:var(--text);border-radius:7px;padding:6px 8px;font:inherit;font-size:13px}
 textarea{min-height:64px;resize:vertical}
 .row{display:flex;gap:8px;align-items:center}
+.ftrow{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line)}
+.ftrow > span:not(.grow){width:54px;text-align:center;flex:none}
+.ftrow .grow{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.ftrow .fi{font-size:18px;width:24px;text-align:center}
+.ftrow.off .grow{opacity:.45}
+.fthead{font-size:11px;color:var(--muted);border-bottom:none;padding-bottom:0}
+.ftrow .mv{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:6px;width:22px;height:22px;padding:0;cursor:pointer}
+.ftrow .mv:disabled{opacity:.3;cursor:default}
 .row > *{flex:none}
 .row .grow{flex:1}
 .hint{color:var(--muted);font-size:11.5px;margin-top:4px}
@@ -94,8 +116,16 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
 </head>
 <body>
 <nav id="nav"></nav>
-<main>
+<main id="main"><div class="ptitle" id="ptitle"></div>
 <!-- General: the widget itself -->
+<!-- Features: which are on, which have a button around her, in which order -->
+<section class="tab" id="tab-features">
+  <div class="hint" style="margin-top:12px" data-t="ftS.intro"></div>
+  <div class="ftrow fthead"><span class="grow"></span><span data-t="ftS.on"></span><span data-t="ftS.icon"></span><span data-t="ftS.order"></span></div>
+  <div id="ftList"></div>
+  <div class="hint" style="margin-top:12px" data-t="ftS.offHint"></div>
+</section>
+
 <section class="tab" id="tab-general">
   <div class="section" data-t="language"></div>
   <div class="seg" id="langSeg"></div>
@@ -190,6 +220,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
   <div class="row"><span style="min-width:110px" data-t="cxS.sandbox"></span><select id="x_sandbox" onchange="saveCodex()"></select></div>
 </section>
 
+<!-- GitHub -->
+<section class="tab" id="tab-github">
+  <div class="hint" style="margin-top:12px" data-t="ghS.intro"></div>
+  <div class="hint" id="g_acct" style="color:var(--text)"></div>
+  <label class="chk" style="color:var(--text)"><input type="checkbox" id="g_forks" onchange="saveGithub()"><span data-t="ghS.forks"></span></label>
+  <label class="chk" style="color:var(--text)"><input type="checkbox" id="g_arch" onchange="saveGithub()"><span data-t="ghS.archived"></span></label>
+  <label class="chk" style="color:var(--text)"><input type="checkbox" id="g_notify" onchange="saveGithub()"><span data-t="ghS.notify"></span></label>
+  <div class="row" style="margin-top:8px"><span data-t="ghS.every"></span><select id="g_every" style="width:150px" onchange="saveGithub()"></select></div>
+  <div class="section" style="margin-top:14px" data-t="ghS.roots"></div>
+  <div class="hint" data-t="ghS.rootsHint"></div>
+  <textarea id="g_roots" rows="5" style="width:100%;box-sizing:border-box;font:12px ui-monospace,Menlo,monospace" onchange="saveGithub()"></textarea>
+  <div class="hint" style="margin-top:12px" data-t="ghS.privacy"></div>
+</section>
+
 <!-- System monitor -->
 <section class="tab" id="tab-sysmon">
   <div class="section" data-t="period"></div>
@@ -199,14 +243,19 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
   <div class="hint" style="margin-top:12px" data-t="sysHint"></div>
 </section>
 
-<!-- USB devices and their drivers (macOS) -->
+<!-- USB devices and their drivers. Downloading printer drivers (from Apple) is macOS only:
+     Windows gets them through Windows Update by itself -->
 <section class="tab" id="tab-usb">
+  <div id="usbDl1">
   <label class="chk" style="color:var(--text)"><input type="checkbox" id="usbAuto" onchange="saveUsb()"><span data-t="usbAuto"></span></label>
   <div class="hint" data-t="usbAutoHint"></div>
+  </div>
   <label class="chk" style="color:var(--text)"><input type="checkbox" id="usbHubs" onchange="saveUsb()"><span data-t="usbHubs"></span></label>
+  <div id="usbDl2">
   <div class="section" data-t="usbFolder"></div>
   <div class="row"><span class="hint grow" id="usbFolder" style="margin:0"></span>
     <button class="btn ghost" onclick="api().feature('usb','reveal_downloads')" data-t="lg.reveal"></button></div>
+  </div>
   <div class="row" style="margin-top:16px"><div class="section grow" style="margin:0" data-t="usbDevices"></div>
     <button class="btn ghost" id="usbCheck" onclick="usbCheck()"></button></div>
   <div class="hint" id="usbStatus"></div>
@@ -272,7 +321,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
 <script>
 /* The settings window. Tabs: General (the widget), one per feature, and Custom skin.
    Opened from the menus: settings.html#general | #parcels | #parcels:add | #sysmon | #skin | #log */
-const TABS = ['general', 'parcels', 'mail', 'claude', 'codex', 'sysmon', 'usb', 'printers', 'skin', 'log'];
+const TABS = ['general', 'features', 'parcels', 'mail', 'claude', 'codex', 'github', 'sysmon', 'usb', 'printers', 'skin', 'log'];
 let tab = 'general', state = {f: {}}, settings = null;
 
 function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1500); }
@@ -281,25 +330,42 @@ function seg(id, opts, cur, fn){
 }
 function openTab(t){
   const [name, sub] = String(t || 'general').split(':');
-  tab = TABS.includes(name) ? name : 'general';
+  tab = TABS.includes(name) && tabOn(name) ? name : 'general';
   document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === 'tab-' + tab));
-  renderNav();
+  renderNav(); $('main').scrollTop = 0;
   if(tab === 'skin') fillCustomSkin();
   if(tab === 'log') fillLog();
   if(tab === 'printers') apRefresh(false);
   logTimer();
 }
+// the sidebar: an icon tile and a name per page, in groups (app · features · tools)
+const NAV_GROUPS = [['general', 'features'], ['parcels', 'mail', 'claude', 'codex', 'github', 'sysmon', 'usb'], ['printers', 'skin', 'log']];
+const NAV_ICON = {general: ['⚙️', '#8e8e93'], features: ['🧩', '#5e5ce6'], parcels: ['📦', '#c08a4a'], mail: ['✉️', '#0a84ff'],
+  claude: ['🤖', '#d97757'], codex: ['🌀', '#10a37f'], github: ['🐙', '#24292f'], sysmon: ['📊', '#34c759'], usb: ['🔌', '#ff9f0a'],
+  printers: ['🖨', '#64748b'], skin: ['🎨', '#ff375f'], log: ['📝', '#8e8e93']};
+function navName(k){ return String(T().tabs[k] || k).replace(/^[^\p{L}\p{N}]+/u, '').trim(); }   // "📦 Parcels" -> "Parcels"
 function renderNav(){
-  $('nav').innerHTML = TABS.map(k => `<button class="${k === tab ? 'on' : ''}" onclick="openTab('${k}')">${esc(T().tabs[k])}</button>`).join('');
+  const groups = NAV_GROUPS.map(g => g.filter(k => TABS.includes(k) && tabOn(k))).filter(g => g.length);
+  $('nav').innerHTML = groups.map(g => g.map(k => {
+    const [ic, bg] = NAV_ICON[k] || ['•', '#8e8e93'];
+    return `<button class="${k === tab ? 'on' : ''}" onclick="openTab('${k}')"><span class="ni" style="background:${bg}">${ic}</span>${esc(navName(k))}</button>`;
+  }).join('')).join('<div class="grp"></div>');
+  $('ptitle').textContent = navName(tab);
 }
+document.addEventListener('DOMContentLoaded', () => $('main').addEventListener('scroll', e => $('ptitle').classList.toggle('lift', e.target.scrollTop > 2)));
 window.onhashchange = () => openTab(location.hash.slice(1));
 
+// tabs of features you turned off are hidden (printers belongs to the USB feature)
+let feats = [];
+const TAB_OF = {printers: 'usb'};
+function tabOn(k){ const f = feats.find(x => x.id === (TAB_OF[k] || k)); return !f || f.on; }
 async function load(){
   state = await api().get_state();
+  feats = await api().get_features();
   if(state.lang !== lang){ lang = state.lang; applyStaticText(); renderNav(); settings = null; }
   document.title = T().title;
   if(!settings){ settings = await api().get_settings(); fillForms(); }
-  fillGeneral(); fillPackages(); fillMail(); fillClaude(); fillCodex(); fillSysmon(); fillUsb(); fillPrinters();
+  fillFeatures(); fillGeneral(); fillPackages(); fillMail(); fillClaude(); fillCodex(); fillGithub(); fillSysmon(); fillUsb(); fillPrinters();
   if(tab === 'skin') renderSkinJob(state.skin_job);
 }
 window.onBackendUpdate = () => load();
@@ -333,6 +399,7 @@ async function deleteSkin(id, name){ if(confirm(T().deleteConfirm(name))){ await
 /* ---------------- Parcels ---------------- */
 function fillForms(){
   const p = settings.parcels, L = T();
+  if(!p) return;                  // Parcels is turned off
   $('p_start').value = p.start; $('p_end').value = p.end;
   $('p_every').innerHTML = [30, 45, 60, 90, 120, 180, 240].map(m => `<option value="${m}" ${+p.every_min === m ? 'selected' : ''}>${m}</option>`).join('');
   $('p_addr').value = p.gmail_address || ''; $('p_pw').value = '';
@@ -399,6 +466,38 @@ async function saveClaude(toggle){
   settings = null; await load(); toast(T().saved);
 }
 
+/* ---------------- Features ---------------- */
+function fillFeatures(){
+  const F = T().ftS;
+  $('ftList').innerHTML = feats.map((f, i) => `<div class="ftrow ${f.on ? '' : 'off'}">
+    <span class="grow"><span class="fi">${esc(f.icon)}</span><b>${esc(lang === 'zh' ? f.name_zh : f.name)}</b></span>
+    <span><input type="checkbox" ${f.on ? 'checked' : ''} onchange="ftSet(${i},'on',this.checked)" title="${esc(F.on)}"></span>
+    <span><input type="checkbox" ${f.shown && f.on ? 'checked' : ''} ${f.on && f.can_show ? '' : 'disabled'} onchange="ftSet(${i},'shown',this.checked)" title="${esc(F.icon)}"></span>
+    <span><button class="mv" ${i ? '' : 'disabled'} onclick="ftMove(${i},-1)">↑</button>
+      <button class="mv" ${i < feats.length - 1 ? '' : 'disabled'} onclick="ftMove(${i},1)">↓</button></span></div>`).join('');
+}
+async function ftSave(){
+  await api().save_features(feats.map(f => ({id: f.id, on: f.on, shown: f.shown})));
+  settings = null; await load(); renderNav(); toast(T().saved);
+}
+function ftSet(i, k, v){ feats[i][k] = v; ftSave(); }
+function ftMove(i, d){ const j = i + d; if(j < 0 || j >= feats.length) return; [feats[i], feats[j]] = [feats[j], feats[i]]; ftSave(); }
+
+/* ---------------- GitHub ---------------- */
+function fillGithub(){
+  const s = settings && settings.github, S = T().ghS;
+  if(!s) return;
+  $('g_acct').textContent = !s.gh ? S.noGh : s.login ? S.acct(s.login) : s.st === 'signed_out' ? S.signedOut : S.unknown;
+  $('g_forks').checked = !!s.forks; $('g_arch').checked = !!s.archived; $('g_notify').checked = !!s.notify;
+  $('g_every').innerHTML = s.everys.map(v => `<option value="${v}" ${v === s.every ? 'selected' : ''}>${esc(v ? S.everyN(v) : S.onlyOpen)}</option>`).join('');
+  if(document.activeElement !== $('g_roots')) $('g_roots').value = (s.roots || []).join('\n');
+}
+async function saveGithub(){
+  await api().save_settings('github', {forks: $('g_forks').checked, archived: $('g_arch').checked, notify: $('g_notify').checked,
+    every: +$('g_every').value, roots: $('g_roots').value.split('\n').map(x => x.trim()).filter(Boolean)});
+  settings = null; await load(); toast(T().saved);
+}
+
 /* ---------------- Codex ---------------- */
 function fillCodex(){
   const s = settings && settings.codex;
@@ -452,10 +551,11 @@ function fillUsb(){
   const s = settings && settings.usb, U = T().u, st = (state.f || {}).usb || {};
   if(!s) return;
   $('usbAuto').checked = !!s.auto_download; $('usbHubs').checked = !!s.show_hubs;
+  $('usbDl1').style.display = $('usbDl2').style.display = IS_WIN ? 'none' : '';
   $('usbFolder').textContent = s.folder.replace(/^\/Users\/[^/]+/, '~');
   const busy = st.busy || (st.online || {}).st === 'running';
   $('usbCheck').textContent = busy ? U.checking : U.checkAgain; $('usbCheck').disabled = !!busy;
-  const m = st.macos || {}, upd = ((m.updates || []).find(u => /^macos/i.test(u.title)) || {}).version;
+  const m = st.macos || {}, upd = m.update !== undefined ? m.update : ((m.updates || []).find(u => /^macos/i.test(u.title)) || {}).version;
   $('usbStatus').textContent = [st.last_scan ? U.checked(hhmm(st.last_scan)) : '',
     upd ? U.macosUpd(m.version, upd) : m.version && m.updates ? U.macosOk(m.version) : ''].filter(Boolean).join(' · ');
   const ds = st.devices || [];

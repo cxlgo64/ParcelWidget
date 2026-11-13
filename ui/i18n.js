@@ -86,7 +86,7 @@ const I18N = {
       sleep:'zzz…', wake:'Oh! I wasn\'t sleeping!',
     },
     // ---- settings window ----
-    title:'Settings', tabs:{general:'General', parcels:'📦 Parcels', mail:'✉️ Mail', claude:'🤖 Claude', codex:'🌀 Codex', sysmon:'📊 System', usb:'🔌 USB', printers:'🖨 Printers', skin:'🎨 Custom skin', log:'📝 Log'},
+    title:'Settings', tabs:{general:'General', features:'🧩 Features', parcels:'📦 Parcels', mail:'✉️ Mail', claude:'🤖 Claude', codex:'🌀 Codex', github:'🐙 GitHub', sysmon:'📊 System', usb:'🔌 USB', printers:'🖨 Printers', skin:'🎨 Custom skin', log:'📝 Log'},
     lg:{all:'All', checks:'Checks', errors:'Errors', auto:'Live', refresh:'Refresh', copy:'Copy', copied:'Copied',
         reveal:'Show in Finder', clear:'Clear', clearConfirm:'Clear the log?', empty:'Nothing logged yet.',
         lines:n => n + ' lines', asleep:'Computer asleep: checks paused', busy:'Checking now…',
@@ -112,6 +112,17 @@ const I18N = {
     sysHint:'CPU, memory and network are sampled every second and kept for an hour.',
     usbAuto:'Download printer drivers by myself', usbAutoHint:'When a USB printer that isn\'t set up needs a driver, I download it from Apple into this folder. Installing is up to you.',
     usbHubs:'Show hubs and adapters', usbFolder:'Driver folder', usbDevices:'Devices',
+    gh:{looking:'Looking at GitHub', checked:t=>`Checked ${t}`, refresh:'Check now', profile:'My GitHub', showAll:'Show all',
+      noGh:'GitHub\'s command line (gh) isn\'t installed. In Terminal:', signedOut:'gh isn\'t signed in to GitHub yet. In Terminal:',
+      err:e=>`Couldn't reach GitHub: ${e}`, unread:n=>`${n} unread notification${n > 1 ? 's' : ''}`, noUnread:'No unread notifications',
+      newNotifs:n=>`${n} new GitHub notification${n > 1 ? 's' : ''}`, more:n=>`${n} more`, hidden:n=>`${n} forks or archived not shown (Settings → GitHub)`,
+      private:'private', archived:'archived', issues:n=>`${n} issue${n > 1 ? 's' : ''}`, prs:n=>`${n} PR${n > 1 ? 's' : ''}`, pushed:t=>`pushed ${t}`,
+      minAgo:n=>`${n} min ago`, hrAgo:n=>`${n} h ago`, dayAgo:n=>`${n} d ago`,
+      dirty:n=>`${n} uncommitted`, unpushed:'not pushed', clean:'up to date', reveal:'Show', localHint:'The copy on this Mac (as of your last fetch)',
+      ci:{success:'Checks passed', failure:'Checks failed', pending:'Checks running'},
+      kind:{PullRequest:'Pull request', Issue:'Issue', Release:'Release', Commit:'Commit', Discussion:'Discussion', CheckSuite:'Checks'},
+      why:{review_requested:'review requested', mention:'mentioned you', assign:'assigned to you', author:'you started it', comment:'new comment',
+        subscribed:'watching', team_mention:'team mentioned', state_change:'status changed', ci_activity:'checks', security_alert:'security alert'}},
     cx:{miss:'Codex', you:'You:', hello:'Tell me what Codex should do. It runs in the folder above (it can change files there, nowhere else), and I\'ll show you the answer here.',
       ph:'Ask Codex…', working:'Codex is working', took:s=>`took ${s} s`, stopped:'Stopped.', runErr:e=>`Didn't work: ${e}`,
       followUp:'Type to follow up', newChat:'New chat', stop:'Stop', other:'Other…', continue:'Continue',
@@ -131,6 +142,14 @@ const I18N = {
       allow:'Allow', always:'Always allow', deny:'Deny', inClaude:'In Claude', send:'Send', left:m=>m ? `waiting · ${m} min` : 'waiting',
       tools:{Bash:'Run a command', Edit:'Edit a file', MultiEdit:'Edit a file', Write:'Write a file', Read:'Read a file', NotebookEdit:'Edit a notebook',
         WebFetch:'Open a web page', WebSearch:'Search the web', other:t=>`Use ${t}`}},
+    ftS:{intro:'Choose what I do for you. "On" runs it; "Button" puts its button in the circle around me (otherwise it\'s still in the menu bar and right-click menu). Use the arrows to change the order of the buttons.',
+      on:'On', icon:'Button', order:'Order', offHint:'A feature you turn off doesn\'t run at all and its settings tab is hidden; turn it back on anytime, its settings are kept.'},
+    ghS:{intro:'I show your GitHub repositories and notifications. I ask GitHub through its command line (gh), signed in as you: I never see or keep your token.',
+      acct:a=>`Signed in as ${a} (through gh).`, signedOut:'gh isn\'t signed in. In Terminal: gh auth login', noGh:'gh isn\'t installed. In Terminal: brew install gh', unknown:'Open my GitHub balloon to check.',
+      forks:'Show forks', archived:'Show archived repositories', notify:'Tell me when new notifications come in',
+      every:'Check in the background', everyN:n=>`every ${n} min`, onlyOpen:'only when I open it',
+      roots:'Where your copies are', rootsHint:'Folders I look in (a few levels deep) for copies of your repositories on this Mac, one per line.',
+      privacy:'Nothing is saved: your repositories and notifications stay in her balloon. Local copies are only read (git status), never changed or fetched.'},
     cxS:{intro:'Tasks you type in Codex\'s balloon run with these (you can change model and thinking there too, in battle mode). They apply from the next message.',
       model:'Model', effort:'Thinking effort', context:'Context size', sandbox:'What it may do',
       sandboxes:{'workspace-write':'Change files in the chosen folder', 'read-only':'Only look, change nothing'}},
@@ -280,7 +299,7 @@ const I18N = {
       delivered:c=>`你的 ${c} 快递送到啦！🎉`, newPkg:n=>`发现 ${n} 个新快递！`,
       sleep:'zzz…', wake:'诶！我、我没睡着！',
     },
-    title:'设置', tabs:{general:'通用', parcels:'📦 快递', mail:'✉️ 邮件', claude:'🤖 Claude', codex:'🌀 Codex', sysmon:'📊 系统状态', usb:'🔌 USB', printers:'🖨 打印机', skin:'🎨 自定义皮肤', log:'📝 日志'},
+    title:'设置', tabs:{general:'通用', features:'🧩 功能', parcels:'📦 快递', mail:'✉️ 邮件', claude:'🤖 Claude', codex:'🌀 Codex', github:'🐙 GitHub', sysmon:'📊 系统状态', usb:'🔌 USB', printers:'🖨 打印机', skin:'🎨 自定义皮肤', log:'📝 日志'},
     lg:{all:'全部', checks:'检查', errors:'错误', auto:'实时', refresh:'刷新', copy:'复制', copied:'已复制',
         reveal:'在访达中显示', clear:'清空', clearConfirm:'清空日志？', empty:'还没有日志。',
         lines:n => n + ' 行', asleep:'电脑待机中：已暂停检查', busy:'正在检查…',
@@ -306,6 +325,17 @@ const I18N = {
     sysHint:'CPU、内存和网络每秒采样一次，保留一小时。',
     usbAuto:'自动下载打印机驱动', usbAutoHint:'插上还没设置的 USB 打印机、又需要驱动时，我从苹果下载到这个文件夹。安装由你来。',
     usbHubs:'显示集线器和转接器', usbFolder:'驱动文件夹', usbDevices:'设备',
+    gh:{looking:'正在看 GitHub', checked:t=>`${t} 看过`, refresh:'现在看看', profile:'我的 GitHub', showAll:'看全部',
+      noGh:'没有安装 GitHub 命令行（gh）。在终端里运行：', signedOut:'gh 还没登录 GitHub。在终端里运行：',
+      err:e=>`连不上 GitHub：${e}`, unread:n=>`${n} 条未读通知`, noUnread:'没有未读通知',
+      newNotifs:n=>`GitHub 有 ${n} 条新通知`, more:n=>`还有 ${n} 个`, hidden:n=>`有 ${n} 个 fork 或已归档的没显示（设置 → GitHub）`,
+      private:'私有', archived:'已归档', issues:n=>`${n} 个 issue`, prs:n=>`${n} 个 PR`, pushed:t=>`${t}推送`,
+      minAgo:n=>`${n} 分钟前`, hrAgo:n=>`${n} 小时前`, dayAgo:n=>`${n} 天前`,
+      dirty:n=>`${n} 个未提交`, unpushed:'未推送', clean:'已同步', reveal:'打开', localHint:'这台 Mac 上的副本（以你上次 fetch 为准）',
+      ci:{success:'检查通过', failure:'检查失败', pending:'检查进行中'},
+      kind:{PullRequest:'Pull request', Issue:'Issue', Release:'发布', Commit:'提交', Discussion:'讨论', CheckSuite:'检查'},
+      why:{review_requested:'请你审查', mention:'提到了你', assign:'分配给你', author:'你发起的', comment:'有新评论',
+        subscribed:'你关注的', team_mention:'提到了你的团队', state_change:'状态变了', ci_activity:'检查', security_alert:'安全提醒'}},
     cx:{miss:'Codex', you:'你：', hello:'告诉我要 Codex 做什么。它会在上面的文件夹里运行（只能改这个文件夹里的文件），我把回答显示在这里。',
       ph:'跟 Codex 说…', working:'Codex 正在做', took:s=>`用了 ${s} 秒`, stopped:'已停止。', runErr:e=>`没成功：${e}`,
       followUp:'可以继续追问', newChat:'新对话', stop:'停止', other:'其他…', continue:'继续',
@@ -325,6 +355,14 @@ const I18N = {
       allow:'允许', always:'总是允许', deny:'拒绝', inClaude:'去 Claude 里答', send:'发送', left:m=>m ? `等待中 · ${m} 分钟` : '等待中',
       tools:{Bash:'运行命令', Edit:'修改文件', MultiEdit:'修改文件', Write:'写文件', Read:'读文件', NotebookEdit:'修改笔记本',
         WebFetch:'打开网页', WebSearch:'上网搜索', other:t=>`使用 ${t}`}},
+    ftS:{intro:'选择我帮你做哪些事。“启用”就会运行；“按钮”会把它放进我周围那一圈按钮里（不放的话，菜单栏和右键菜单里还是有）。用箭头调整按钮的顺序。',
+      on:'启用', icon:'按钮', order:'顺序', offHint:'关掉的功能完全不运行，它的设置页也会隐藏；随时可以再打开，原来的设置都还在。'},
+    ghS:{intro:'我帮你看 GitHub 上的仓库和通知。我通过 GitHub 命令行（gh）以你的身份去问：我从来看不到、也不保存你的 token。',
+      acct:a=>`已登录 ${a}（通过 gh）。`, signedOut:'gh 还没登录。在终端里运行：gh auth login', noGh:'没有安装 gh。在终端里运行：brew install gh', unknown:'打开我的 GitHub 对话框看看。',
+      forks:'显示 fork', archived:'显示已归档的仓库', notify:'有新通知时告诉我',
+      every:'后台检查', everyN:n=>`每 ${n} 分钟`, onlyOpen:'只在我打开时',
+      roots:'本地副本在哪', rootsHint:'我在这些文件夹里（往下几层）找你仓库在这台 Mac 上的副本，一行一个。',
+      privacy:'什么都不保存：仓库和通知只显示在她的对话框里。本地副本只读取（git status），从不修改，也不 fetch。'},
     cxS:{intro:'你在 Codex 对话框里输入的任务用这些设置（战斗模式下也可以直接改模型和思考深度），从下一条消息起生效。',
       model:'模型', effort:'思考深度', context:'上下文大小', sandbox:'允许它做什么',
       sandboxes:{'workspace-write':'可以改所选文件夹里的文件', 'read-only':'只看不改'}},
@@ -392,6 +430,95 @@ const I18N = {
   },
 };
 
+/* ---------------- Windows: the same things have other names there ----------------
+   Laid over the strings above when the page runs on Windows (same keys, only the ones that differ).
+   In the data "apple" means "comes with the system" and "airprint" means "needs no driver". */
+const IS_WIN = /Windows/i.test(navigator.userAgent);
+const I18N_WIN = {
+  en: {
+    browsers:{webkit:'WebKit'},
+    p:{mailLocked:'🔒 Saved passwords are still locked (Windows Hello was cancelled), so I skipped Gmail.', unlock:'🔓 Unlock with Windows Hello'},
+    u:{found:(n,a,t)=>`🔌 ${n} USB device${n==1?'':'s'}: ${a} Windows driver${a==1?'':'s'}` + (t ? `, <b>${t} other${t==1?'':'s'}</b>` : ''),
+      macosOk:v=>`✅ Windows' own drivers are current (Windows ${v}).`,
+      macosUpd:(v,u)=>`⬆️ Windows Update has ${u} update${u==1?'':'s'} waiting (you have Windows ${v}): Windows' own USB drivers update with it.`,
+      cups:'printed to through its printer driver',
+      b:{apple_ok:'✓ Windows', apple_update:()=>'⬆ Windows Update', apple_unknown:'Windows',
+        maybe_newer:v=>v === 'wu' ? '⬆ in Windows Update' : `⬆ v${v} online?`},
+      tip:{apple_ok:'Comes with Windows, which is up to date', apple_update:'Comes with Windows: updates with Windows Update',
+        apple_unknown:'Comes with Windows',
+        maybe_newer:'A newer driver may be out: look in Windows Update (optional updates), or check the links'},
+      pr:{airprint:n=>`🖨 ${n} isn't in your printer list yet. It needs no driver: Windows can add it by itself.`,
+        local:n=>`🖨 ${n} isn't in your printer list yet. Its driver is already on this PC.`,
+        none:n=>`🖨 ${n} isn't in your printer list yet. Windows usually adds printers by itself (Windows Update has most drivers). Otherwise, its maker's driver:`},
+      air:'Add in Settings'},
+    lg:{reveal:'Show in Explorer'},
+    touchId:'Unlock saved passwords with Windows Hello',
+    touchIdHint:'Your Gmail app password and image AI keys are saved encrypted on this PC (only your Windows account can open them). With this on, I ask for Windows Hello (fingerprint, face or PIN) once each time I start, before I use them. Off, or no Windows Hello on this PC: I never ask.',
+    pwHint:'Google Account → Security → 2-Step Verification → App passwords. Saved encrypted on this PC, unlocked with Windows Hello.',
+    gh:{noGh:'GitHub\'s command line (gh) isn\'t installed. In a terminal:', signedOut:'gh isn\'t signed in to GitHub yet. In a terminal:',
+      localHint:'The copy on this PC (as of your last fetch)'},
+    cx:{noCli:'Codex isn\'t installed (the codex command line: npm install -g @openai/codex).'},
+    ftS:{intro:'Choose what I do for you. "On" runs it; "Button" puts its button in the circle around me (otherwise it\'s still in the tray icon\'s menu and the right-click menu). Use the arrows to change the order of the buttons.'},
+    ghS:{signedOut:'gh isn\'t signed in. In a terminal: gh auth login', noGh:'gh isn\'t installed. In a terminal: winget install GitHub.cli',
+      rootsHint:'Folders I look in (a few levels deep) for copies of your repositories on this PC, one per line.'},
+    ml:{lookingApple:'Reading Outlook on this PC…', appleOff:'Outlook (the classic desktop app) isn\'t open, so I can\'t read it.', openMail:'Open Outlook',
+      appleDenied:'Outlook didn\'t let me read its mail.', appleErr:e=>`Couldn't read Outlook: ${e}`, apple:'Outlook'},
+    mlS:{apple:'Read Outlook on this PC (the classic desktop app)',
+      appleHint:'Asks the Outlook that comes with Office (it has to be open). The new Outlook and the Windows Mail app don\'t answer other programs: use the Microsoft sign-in below for those.'},
+    ap:{intro:'Most printers need no driver from their maker: Windows asks the printer what it can do (two-sided, color, paper trays). One click sets a network printer up that way. The same printer is often in the list more than once; I keep the best entry and can remove the others.',
+      find:'Look nearby', addrGo:'Set up', setup:'Set up without a driver', addWin:'Open Printers & scanners…',
+      st:{ready:'✓ ready'}, airprint:'no driver needed',
+      job:{already:q=>`✓ Already set up: "${q}"`,
+        manual:'Windows\' Printers & scanners is open: choose "Add device" there and pick the printer.'},
+      err:{'no-airprint':'This printer needs its maker\'s driver.'}},
+    csKeySaved:'✓ Key saved encrypted on this PC. Leave empty to keep it. ',
+  },
+  zh: {
+    browsers:{webkit:'WebKit'},
+    p:{mailLocked:'🔒 保存的密码还锁着（Windows Hello 被取消了），所以这次没看 Gmail。', unlock:'🔓 用 Windows Hello 解锁'},
+    u:{found:(n,a,t)=>`🔌 ${n} 个 USB 设备：${a} 个 Windows 自带驱动` + (t ? `，<b>${t} 个其他驱动</b>` : ''),
+      macosOk:v=>`✅ Windows 自带的驱动是最新的（Windows ${v}）。`,
+      macosUpd:(v,u)=>`⬆️ Windows 更新里有 ${u} 个更新待安装（你现在是 Windows ${v}）：系统自带的 USB 驱动跟着它一起更新。`,
+      cups:'通过它的打印机驱动打印',
+      b:{apple_ok:'✓ 系统自带', apple_update:()=>'⬆ Windows 更新', apple_unknown:'系统自带',
+        maybe_newer:v=>v === 'wu' ? '⬆ Windows 更新里有' : `⬆ 网上有 v${v}？`},
+      tip:{apple_ok:'Windows 自带，系统已是最新', apple_update:'Windows 自带：随 Windows 更新一起更新',
+        apple_unknown:'Windows 自带',
+        maybe_newer:'可能有更新的驱动：看看 Windows 更新（可选更新），或者下面的链接'},
+      pr:{airprint:n=>`🖨 ${n} 还没添加。它不需要驱动，Windows 自己就能加上。`,
+        local:n=>`🖨 ${n} 还没添加。它的驱动这台电脑上已经有了。`,
+        none:n=>`🖨 ${n} 还没添加。Windows 一般会自己加上打印机（大多数驱动 Windows 更新里都有）。不行的话，看看厂商的驱动：`},
+      air:'去设置里添加'},
+    lg:{reveal:'在资源管理器中显示'},
+    touchId:'用 Windows Hello 解锁保存的密码',
+    touchIdHint:'你的 Gmail 应用专用密码和图像 AI 密钥加密保存在这台电脑上（只有你的 Windows 账户能打开）。打开时，我每次启动后第一次要用之前会请你用 Windows Hello（指纹、人脸或 PIN）确认一下。关闭，或者这台电脑没有设置 Windows Hello：永远不问。',
+    pwHint:'Google 账号 → 安全性 → 两步验证 → 应用专用密码。加密保存在这台电脑上，用 Windows Hello 解锁。',
+    gh:{noGh:'没有安装 GitHub 命令行（gh）。在终端里运行：', signedOut:'gh 还没登录 GitHub。在终端里运行：',
+      localHint:'这台电脑上的副本（以你上次 fetch 为准）'},
+    cx:{noCli:'没有安装 Codex（codex 命令行：npm install -g @openai/codex）。'},
+    ftS:{intro:'选择我帮你做哪些事。“启用”就会运行；“按钮”会把它放进我周围那一圈按钮里（不放的话，托盘图标的菜单和右键菜单里还是有）。用箭头调整按钮的顺序。'},
+    ghS:{signedOut:'gh 还没登录。在终端里运行：gh auth login', noGh:'没有安装 gh。在终端里运行：winget install GitHub.cli',
+      rootsHint:'我在这些文件夹里（往下几层）找你仓库在这台电脑上的副本，一行一个。'},
+    ml:{lookingApple:'正在读这台电脑上的 Outlook…', appleOff:'Outlook（经典桌面版）没打开，我读不到。', openMail:'打开 Outlook',
+      appleDenied:'Outlook 没让我读邮件。', appleErr:e=>`读不了 Outlook：${e}`, apple:'Outlook'},
+    mlS:{apple:'读这台电脑上的 Outlook（经典桌面版）',
+      appleHint:'通过 Office 自带的 Outlook 读（要开着）。新版 Outlook 和 Windows“邮件”App 不让别的程序读：那种情况请用下面的 Microsoft 登录。'},
+    ap:{intro:'大多数打印机不需要厂商驱动：Windows 直接问打印机会什么（双面、彩色、纸盒）。网络打印机一键就能按这种方式设置好。同一台打印机常常在列表里出现好几次，我会保留最好的那个，其余的可以一键删掉。',
+      find:'搜索附近', addrGo:'设置', setup:'免驱动设置', addWin:'打开“打印机和扫描仪”…',
+      st:{ready:'✓ 可用'}, airprint:'免驱动',
+      job:{already:q=>`✓ 已经设置好了：“${q}”`,
+        manual:'已打开 Windows 的“打印机和扫描仪”：点“添加设备”，选中这台打印机。'},
+      err:{'no-airprint':'这台打印机需要厂商的驱动。'}},
+    csKeySaved:'✓ 密钥已加密保存在这台电脑上，留空表示不修改。',
+  },
+};
+if(IS_WIN){
+  const lay = (base, over) => { for(const k in over){
+    if(over[k] && typeof over[k] === 'object' && base[k] && typeof base[k] === 'object') lay(base[k], over[k]); else base[k] = over[k]; } };
+  lay(I18N.en, I18N_WIN.en); lay(I18N.zh, I18N_WIN.zh);
+  document.documentElement.classList.add('win');
+}
+
 /* ---------------- helpers shared by both pages ---------------- */
 let lang = 'en';
 const T = () => I18N[lang] || I18N.en;
@@ -420,7 +547,7 @@ function errText(code){
 function mailErrKind(e){
   e = String(e || '').toLowerCase();
   if(e === 'locked') return 'locked';
-  if(/errno 8|nodename|name or service|network is unreachable|timed out|timeout|connection (reset|refused|aborted)|no route|offline/.test(e)) return 'net';
+  if(/errno 8|nodename|name or service|getaddrinfo|errno 1100\d|winerror 100\d\d|network is unreachable|timed out|timeout|connection (reset|refused|aborted)|no route|offline/.test(e)) return 'net';
   if(/authenticat|invalid credentials|login|password/.test(e)) return 'auth';
   return '';
 }

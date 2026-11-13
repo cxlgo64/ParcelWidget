@@ -1,7 +1,8 @@
 """Claude Code hook: passes what Claude is doing to Parcel Widget's balloon.
 
 Installed by the widget (Settings → 🤖 Claude) into ~/.claude/settings.json, run by the
-system's /usr/bin/python3 (standard library only, Python 3.9+). Claude Code runs it on:
+system's /usr/bin/python3 (standard library only, Python 3.9+); on Windows by the Python the
+widget runs on, or as ParcelWidgetHook.exe next to the packaged app. Claude Code runs it on:
     Stop / StopFailure        Claude finished (or failed): she says how it went; when Claude ended
                               with a question and buttons, your pick goes back to Claude
     Notification              Claude is waiting for you
@@ -9,8 +10,9 @@ system's /usr/bin/python3 (standard library only, Python 3.9+). Claude Code runs
     PreToolUse AskUserQuestion  Claude asks you something: pick the answer in her balloon
     PostToolUse               a tool ran: questions already answered in Claude go away
 
-It hands the event to the widget over a local socket (only you can open it) and, for the
-last two, waits for your choice. If the widget isn't running, you answer in Claude, or the
+It hands the event to the widget over a local socket (only you can open it; on Windows a
+port on this PC only, with a password kept in your own data folder) and, for the last two,
+waits for your choice. If the widget isn't running, you answer in Claude, or the
 time runs out, it prints nothing: Claude Code then carries on exactly as without it.
 """
 import json
@@ -18,8 +20,13 @@ import os
 import socket
 import sys
 
-BASE = os.path.expanduser("~/Library/Application Support/ParcelWidget")
+IS_WIN = sys.platform == "win32"
+if IS_WIN:
+    BASE = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "ParcelWidget")
+else:
+    BASE = os.path.expanduser("~/Library/Application Support/ParcelWidget")
 SOCK = os.environ.get("PARCELWIDGET_CLAUDE_SOCK") or os.path.join(BASE, "claude.sock")
+PORT_FILE = os.environ.get("PARCELWIDGET_CLAUDE_PORT") or os.path.join(BASE, "claude.port")    # Windows
 MAX_TEXT = 4000
 
 
@@ -68,9 +75,35 @@ def _output(ev, ans):
     return None
 
 
+def _stdin():
+    """what Claude Code sent, as UTF-8 whatever the system's own encoding is"""
+    try:
+        raw = sys.stdin.buffer.read()
+    except Exception:           # a program without a console: no sys.stdin, but the pipe is there
+        with open(0, "rb", closefd=False) as f:
+            raw = f.read()
+    return raw.decode("utf-8", "replace")
+
+
+def _connect():
+    """(the connection to the widget, the password to send along or None); OSError if it isn't running"""
+    if not IS_WIN:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(2)
+        s.connect(SOCK)
+        return s, None
+    try:
+        with open(PORT_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+        port, token = int(d["port"]), str(d.get("token") or "")
+    except (ValueError, KeyError, TypeError):
+        raise OSError("bad port file")
+    return socket.create_connection(("127.0.0.1", port), timeout=2), token
+
+
 def main():
     try:
-        ev = json.loads(sys.stdin.read() or "{}")
+        ev = json.loads(_stdin() or "{}")
     except ValueError:
         return
     if not isinstance(ev, dict) or not ev.get("hook_event_name"):
@@ -91,9 +124,9 @@ def main():
     if os.environ.get("PARCELWIDGET_RUN"):
         msg["run"] = True      # started from her balloon (Claude小姐)
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(2)
-        s.connect(SOCK)
+        s, token = _connect()
+        if token is not None:
+            msg["token"] = token
         s.sendall((json.dumps(msg) + "\n").encode())
     except OSError:
         return              # the widget isn't running: nothing to do
@@ -115,7 +148,12 @@ def main():
     except ValueError:
         out = None
     if out:
-        sys.stdout.write(json.dumps(out))
+        text = json.dumps(out)          # plain ASCII
+        try:
+            sys.stdout.write(text)
+            sys.stdout.flush()
+        except Exception:
+            os.write(1, text.encode())
 
 
 if __name__ == "__main__":

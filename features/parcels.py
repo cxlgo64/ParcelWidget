@@ -28,7 +28,7 @@ import threading
 import time
 import traceback
 
-from core import APP_DIR, get_password, has_password, load_memory, log, save_memory, set_password
+from core import APP_DIR, HIDE, get_password, has_password, load_memory, log, save_memory, set_password
 from db import DB
 from tracker import BROWSERS, DEFAULT_BROWSER
 from tracking_parser import guess_carrier
@@ -360,7 +360,8 @@ class Parcels(Feature):
             # Playwright's own driver (works in the packaged app too, where there is no `python -m`)
             from playwright._impl._driver import compute_driver_executable, get_driver_env
             p = subprocess.run([*compute_driver_executable(), "install", AUTO_INSTALL[browser]],
-                               capture_output=True, text=True, timeout=900, env=get_driver_env())
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900,
+                               env=get_driver_env(), **HIDE)
             log(p.stdout[-500:] + p.stderr[-500:])
             ok = p.returncode == 0
         except Exception as e:

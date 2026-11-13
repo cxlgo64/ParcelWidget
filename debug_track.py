@@ -17,6 +17,7 @@ ap.add_argument("--headless", action="store_true")
 ap.add_argument("--browser", default=DEFAULT_BROWSER, choices=list(BROWSERS))
 a = ap.parse_args()
 
-root = os.path.expanduser("~/Library/Application Support/ParcelWidget/browser-profile")
+import instance  # noqa: E402
+root = os.path.join(instance.BASE, "browser-profile")
 t = ParcelsAppTracker(root, headless=a.headless, browser=a.browser)
 t.track_many([a.number], lambda n, r: print("\nResult:", n, r))
