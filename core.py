@@ -1,13 +1,14 @@
-"""Shared bits: paths, config, log, Keychain, skins, size presets. No UI, no platform code."""
+"""Shared bits: paths, config, log, saved passwords, skins, size presets. No UI; what differs
+between macOS and Windows is in plat.py."""
 import json
 import os
 import sys
 import threading
 import time
 
+from plat import HIDE, IS_MAC, IS_WIN  # noqa: F401  (HIDE: see plat.py)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-IS_MAC = sys.platform == "darwin"
-IS_WIN = sys.platform == "win32"
 
 import instance  # noqa: E402
 
@@ -17,7 +18,7 @@ APP_DIR = instance.profile_dir(PROFILE)
 os.makedirs(APP_DIR, exist_ok=True)
 CONFIG_PATH = os.path.join(APP_DIR, "config.json")
 LOG_PATH = os.path.join(APP_DIR, "widget.log")
-FROZEN = bool(getattr(sys, "frozen", False))   # running from the packaged .app (PyInstaller)
+FROZEN = bool(getattr(sys, "frozen", False))   # running from the packaged app (PyInstaller)
 if FROZEN:
     HERE = getattr(sys, "_MEIPASS", HERE)
 
@@ -59,7 +60,7 @@ DEFAULT_CONFIG = {
         "gmail_address": "",
         "scan_days": 14,
         "headless": True,    # run the tracking browser invisibly
-        "browser": "chrome",
+        "browser": "msedge" if IS_WIN else "chrome",     # Edge is on every Windows PC
         # automatic checks: every `every_min` minutes from `start` to `end` (local time)
         "start": "09:00",
         "end": "19:00",
@@ -172,8 +173,8 @@ def save_memory(key, value):
 
 
 def get_password(address, force=False):
-    """the Gmail app password, from the encrypted vault (vault.py): may ask for Touch ID first and
-    raise vault.Locked. force: ask even right after a cancelled Touch ID."""
+    """the Gmail app password, from the encrypted vault (vault.py): may ask for Touch ID (Windows:
+    Windows Hello) first and raise vault.Locked. force: ask even right after a cancel."""
     import vault
     return vault.get("gmail:" + address, keychain=(KEYRING_SERVICE, address), force=force) if address else ""
 

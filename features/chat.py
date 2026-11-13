@@ -18,17 +18,25 @@ import subprocess
 import threading
 import time
 
-from core import log, save_config
+from core import HIDE, IS_WIN, log, save_config
+from plat import base_name
 
 from . import Feature
 
-PATHS = [os.path.expanduser("~/.local/bin"), "/opt/homebrew/bin", "/usr/local/bin"]
+if IS_WIN:
+    _H, _E = os.path.expanduser("~"), os.environ
+    # the native installers, npm's global folder, and the usual package managers
+    PATHS = [os.path.join(_H, ".local", "bin"), os.path.join(_E.get("APPDATA", _H), "npm"),
+             os.path.join(_E.get("LOCALAPPDATA", _H), "Microsoft", "WinGet", "Links"),
+             os.path.join(_H, "scoop", "shims"), os.path.join(_H, ".bun", "bin")]
+else:
+    PATHS = [os.path.expanduser("~/.local/bin"), "/opt/homebrew/bin", "/usr/local/bin"]
 
 
 def which(name, more=()):
     """the command line `name`: on the PATH, in the usual places, or at one of `more`"""
     b = shutil.which(name, path=os.pathsep.join([os.environ.get("PATH", "")] + PATHS))
-    return b or next((p for p in more if os.access(p, os.X_OK)), None)
+    return b or next((p for p in more if os.path.isfile(p) and os.access(p, os.X_OK)), None)
 
 
 def summary(text, n=600):
@@ -41,6 +49,7 @@ class Chat(Feature):
         super().__init__(app)
         self.chat = {"sid": None, "turns": []}
         self._proc = None
+        self._stopping = False        # you pressed Stop
         self._busy = False            # set the moment you press Send (the process starts a moment later)
         self._block = threading.Lock()
         self.viewing = False
@@ -56,8 +65,15 @@ class Chat(Feature):
     def _on_stream(self, m, turn):
         pass
 
+    def _stdin(self, turn):
+        """text to hand the command line on its standard input (None: nothing). Windows: what you
+        typed goes in this way, not as an argument - the command lines installed with npm are
+        .cmd scripts, and cmd.exe would read & | < > % " in your text as commands."""
+        return None
+
     def _env(self, b):
-        return dict(os.environ, PATH=os.pathsep.join([os.environ.get("PATH", ""), os.path.dirname(b), "/usr/bin", "/bin"]))
+        extra = [os.path.dirname(b)] + ([] if IS_WIN else ["/usr/bin", "/bin"])
+        return dict(os.environ, PATH=os.pathsep.join([os.environ.get("PATH", "")] + extra))
 
     # ---------- the folder it runs in ----------
     def folders(self):
@@ -104,9 +120,13 @@ class Chat(Feature):
     def api_stop_run(self):
         p = self._proc
         if p:
+            self._stopping = True
             try:
-                p.terminate()
-            except OSError:
+                if IS_WIN:       # the whole tree: a .cmd script is cmd.exe, the agent is its child
+                    subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], capture_output=True, timeout=15, **HIDE)
+                else:
+                    p.terminate()
+            except (OSError, subprocess.SubprocessError):
                 pass
         return True
 
@@ -128,11 +148,20 @@ class Chat(Feature):
         return {"ok": True}
 
     def _run(self, b, turn, cwd):
-        log("%s: run started in %s" % (self.id, os.path.basename(cwd)))
+        log("%s: run started in %s" % (self.id, base_name(cwd)))
+        self._stopping = False
         try:
+            feed = self._stdin(turn)
             p = self._proc = subprocess.Popen(self._cmd(b, turn, cwd), cwd=cwd, env=self._env(b),
-                                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                              stderr=subprocess.PIPE, text=True, bufsize=1)
+                                              stdin=subprocess.DEVNULL if feed is None else subprocess.PIPE,
+                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                              encoding="utf-8", errors="replace", bufsize=1, **HIDE)
+            if feed is not None:
+                try:
+                    p.stdin.write(feed)
+                    p.stdin.close()
+                except OSError:
+                    pass
             errs = []
             t = threading.Thread(target=lambda: errs.append(p.stderr.read()), daemon=True)
             t.start()                  # read alongside: a full stderr pipe would stall the run
@@ -148,7 +177,7 @@ class Chat(Feature):
             t.join(2)
             err = ("".join(e or "" for e in errs)).strip()[-300:]
             if turn["st"] == "running":
-                turn["st"] = "stopped" if p.returncode in (-15, 143) else "error"
+                turn["st"] = "stopped" if self._stopping or p.returncode in (-15, 143) else "error"
                 turn["a"] = turn["a"] or err or ("exit %s" % p.returncode)
         except Exception as e:
             turn["st"], turn["a"] = "error", str(e)[:300]
@@ -160,7 +189,7 @@ class Chat(Feature):
             log("%s: run %s after %d s" % (self.id, turn["st"], turn["secs"]))
             if not self.viewing and turn["st"] in ("done", "error"):
                 self.app.reports.add(self.id, "reply", {"q": turn["q"][:300], "a": summary(turn["a"], 1500),
-                                                        "st": turn["st"], "project": os.path.basename(cwd)}, live=False)
+                                                        "st": turn["st"], "project": base_name(cwd)}, live=False)
                 try:
                     self.app.show_window()
                 except Exception:
@@ -170,4 +199,4 @@ class Chat(Feature):
     def chat_state(self):
         return {"running": self._busy, "cli": bool(self._bin()),
                 "chat": {"turns": self.chat["turns"], "has_sid": bool(self.chat.get("sid"))},
-                "folders": [{"path": f, "name": os.path.basename(f.rstrip("/")) or f} for f in self.folders()]}
+                "folders": [{"path": f, "name": base_name(f) or f} for f in self.folders()]}

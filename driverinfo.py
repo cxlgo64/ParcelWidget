@@ -6,6 +6,9 @@ macos_updates()               pending macOS updates (softwareupdate --list): App
 search(query)                 top web results (DuckDuckGo), for drivers that aren't Apple's
 find_printer_driver(mfg, mdl) Apple's printer driver package that supports this model
 download_printer_driver(...)  download it into ~/Downloads/Printer Drivers
+windows_updates()             Windows: what Windows Update has waiting, drivers included - the
+                              drivers that come with Windows only get newer with it, and makers
+                              publish theirs there too
 """
 import html
 import json
@@ -17,10 +20,12 @@ import time
 import urllib.parse
 import urllib.request
 
-from core import APP_DIR, log
+from core import APP_DIR, HIDE, IS_WIN, log
 
 CACHE = os.path.join(APP_DIR, "cache")
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+if IS_WIN:
+    UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 USB_IDS = "http://www.linux-usb.org/usb.ids"
 # Apple's software update catalog: its printer driver packages say which models they support
 CATALOG = ("https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-"
@@ -28,7 +33,7 @@ CATALOG = ("https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-1
 # Apple's single installer for HP printers (support.apple.com/kb/DL1888); the catalog's HP
 # product is the same drivers split into 47 pieces
 HP_DMG_PAGE = "https://support.apple.com/kb/DL1888?locale=en_US"
-DOWNLOADS = os.path.expanduser("~/Downloads/Printer Drivers")
+DOWNLOADS = os.path.join(os.path.expanduser("~"), "Downloads", "Printer Drivers")
 APPLE_HOSTS = (".apple.com", ".cdn-apple.com")   # Apple's servers only
 
 
@@ -91,6 +96,63 @@ def vendor_names(vid, pid):
 # ---------------- macOS updates (Apple's drivers) ----------------
 def macos_version():
     return subprocess.run(["sw_vers", "-productVersion"], capture_output=True, text=True).stdout.strip()
+
+
+# ---------------- Windows Update (Windows' own drivers, and makers' drivers published there) ----------------
+_WU_PS = r'''
+$r = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and IsHidden=0")
+$out = New-Object System.Collections.ArrayList
+foreach ($u in $r.Updates) {
+  $d = @{ title = "$($u.Title)"; driver = ($u.Type -eq 2) }
+  if ($u.Type -eq 2) {
+    $d.model = "$($u.DriverModel)"; $d.provider = "$($u.DriverProvider)"; $d.hwid = "$($u.DriverHardwareID)"
+    try { $d.version = ([datetime]$u.DriverVerDate).ToString('yyyy-MM-dd') } catch { $d.version = "" }
+  }
+  [void]$out.Add($d)
+}
+ConvertTo-Json -InputObject @($out) -Compress -Depth 3
+'''
+
+
+def windows_version():
+    """'11 24H2 (26100.2314)'"""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion") as k:
+            def val(n):
+                try:
+                    return str(winreg.QueryValueEx(k, n)[0])
+                except OSError:
+                    return ""
+            build, ubr, disp = val("CurrentBuild"), val("UBR"), val("DisplayVersion")
+        name = "11" if build.isdigit() and int(build) >= 22000 else "10"
+        return " ".join(x for x in (name, disp, "(%s%s)" % (build, "." + ubr if ubr else "") if build else "") if x)
+    except Exception:
+        import platform
+        return platform.release()
+
+
+def windows_updates(max_age=12 * 3600):
+    """{"checked": ts, "os": version, "updates": [{"title", "driver", "model", "provider", "hwid", "version"}]}
+    - asks Windows Update (takes a while: it goes to Microsoft's servers)"""
+    from plat import powershell
+    path = os.path.join(CACHE, "windowsupdate.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            c = json.load(f)
+        if time.time() - c["checked"] < max_age and c.get("os") == windows_version():
+            return c
+    except Exception:
+        pass
+    code, out, err = powershell(_WU_PS, timeout=300)
+    if code != 0:
+        raise RuntimeError(err.splitlines()[0][:160] if err else "Windows Update didn't answer")
+    ups = json.loads(out.strip() or "[]")
+    c = {"checked": time.time(), "os": windows_version(), "updates": ups if isinstance(ups, list) else [ups]}
+    os.makedirs(CACHE, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(c, f)
+    return c
 
 
 def macos_updates(max_age=12 * 3600):
@@ -268,7 +330,7 @@ def download_printer_driver(drv, progress=lambda done, total: None, should_stop=
             _download(p["url"], dest, progress, should_stop, done, total)
         done += p["size"]
         progress(done, total)
-        sig = subprocess.run(["pkgutil", "--check-signature", dest], capture_output=True, text=True).stdout
+        sig = subprocess.run(["pkgutil", "--check-signature", dest], capture_output=True, text=True, **HIDE).stdout
         if "Apple" not in sig or "signed" not in sig.lower():
             raise RuntimeError("%s isn't signed by Apple" % os.path.basename(dest))
     dist = os.path.join(work, "%s.dist" % drv["product"])

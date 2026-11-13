@@ -4,7 +4,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# local data (the app stores real data in ~/Library/Application Support/ParcelWidget)
+# local data (the app stores real data in ~/Library/Application Support/ParcelWidget, on Windows %APPDATA%\ParcelWidget)
 *.db
 *.log
 config.json
@@ -21,3 +21,4 @@ build/
 dist/
 packaging/icon.png
 packaging/icon.icns
+packaging/icon.ico

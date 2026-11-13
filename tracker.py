@@ -8,18 +8,32 @@ Errors are returned as short codes ("blocked", "no_data", "browser_missing:<engi
 """
 import os
 import random
+import sys
 import time
 
 from tracking_parser import is_delivered
 
 URL = "https://parcelsapp.com/en/tracking/{}"
 
+
+def _brave():
+    """where Brave is installed (Playwright finds Chrome and Edge by itself, not Brave)"""
+    if sys.platform == "win32":
+        for var in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
+            p = os.path.join(os.environ.get(var) or "", "BraveSoftware", "Brave-Browser", "Application", "brave.exe")
+            if os.path.exists(p):
+                return p
+        return os.path.join(os.environ.get("ProgramFiles") or "C:\\Program Files", "BraveSoftware", "Brave-Browser",
+                            "Application", "brave.exe")
+    return "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+
+
 # key -> (engine, launch options). Different browsers look different to anti-bot checks,
 # so if one gets blocked, switch to another in Settings.
 BROWSERS = {
     "chrome":   ("chromium", {"channel": "chrome"}),          # installed Google Chrome
     "msedge":   ("chromium", {"channel": "msedge"}),          # installed Microsoft Edge
-    "brave":    ("chromium", {"executable_path": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"}),
+    "brave":    ("chromium", {"executable_path": _brave()}),
     "chromium": ("chromium", {}),                             # Playwright's bundled Chromium
     "firefox":  ("firefox", {}),                              # Playwright Firefox
     "webkit":   ("webkit", {}),                               # Safari engine

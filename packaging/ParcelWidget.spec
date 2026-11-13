@@ -9,9 +9,9 @@ a = Analysis(
     pathex=[ROOT],
     datas=[(os.path.join(ROOT, "ui"), "ui"), (os.path.join(ROOT, "claude_hook.py"), ".")],
     # imported inside functions / by name
-    hiddenimports=["features.parcels", "features.mail", "mailread", "features.claude", "features.chat", "features.codex", "features.sysmon", "features.poke", "features.usb", "usbscan", "driverinfo", "airprint", "instance", "vault", "LocalAuthentication", "menubar", "menus", "power",
+    hiddenimports=["features.parcels", "features.mail", "mailread", "features.claude", "features.chat", "features.codex", "features.github", "features.sysmon", "features.poke", "features.usb", "usbscan", "driverinfo", "airprint", "instance", "vault", "LocalAuthentication", "menubar", "menus", "power",
                    "mail_scanner", "tracker", "skinmaker", "skinmaker.pipeline", "skinmaker.providers",
-                   "keyring.backends.macOS", "webview.platforms.cocoa"],
+                   "keyring.backends.macOS", "webview.platforms.cocoa", "plat"],
     excludes=["tkinter", "pytest", "IPython"],
     noarchive=False,
 )

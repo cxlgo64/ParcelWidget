@@ -31,7 +31,7 @@ def spec(app):
         out += [{"title": instance.T[lang if lang == "zh" else "en"]["name"](PROFILE), "info": True}, {"sep": True}]
     for f in app.features:
         title = "%s  %s" % (f.icon, f.name_zh if lang == "zh" else f.name)
-        if not f.info().get("hover", True) and f.menu(lang) is None:
+        if not f.info().get("available", True) and f.menu(lang) is None:
             continue            # not available on this system (e.g. USB check outside macOS)
         sub = f.menu(lang)
         if sub:

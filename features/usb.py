@@ -1,4 +1,5 @@
-"""USB: what's plugged in, which driver runs it, and whether that driver is current (macOS).
+"""USB: what's plugged in, which driver runs it, and whether that driver is current
+(macOS and Windows; the Windows differences are at the end of this text).
 
 At launch she lists the USB devices with their drivers, then looks online:
   - Apple's own drivers are part of macOS, so they're current when macOS is: she asks
@@ -13,6 +14,19 @@ setup, removing duplicate entries, picking the default (see airprint.py).
 While running she rescans every 30 s; a newly plugged-in printer gets the printer treatment,
 other devices just show up in the list.
 
+Windows
+  - Devices and drivers come from the registry (usbscan_win.py). The drivers that come with
+    Windows (provider Microsoft) are current when Windows is: she asks Windows Update what's
+    waiting. Makers publish their drivers on Windows Update too: a driver update waiting there
+    for a plugged-in device is marked on that device. Other drivers: the web search, as on the Mac.
+  - USB printers are set up by Windows itself when plugged in (plug and play, and without any
+    driver for printers that speak IPP over USB). One that isn't in the printer list gets the
+    links to its maker's driver and a button to Settings › Printers & scanners; nothing is downloaded.
+  - Printers (Settings → Printers): winprint.py instead of airprint.py; "AirPrint" there is
+    Windows' driverless printing (Microsoft IPP Class Driver).
+In the data, "apple" means "comes with the system" and "macos" is the system's update status,
+on both.
+
 Report data (put into words by the page):
     startup: {"st": scanning|online|done, "n", "apple", "third", "macos": {"version", "update"},
               "newer": [names], "printers": [printer], "err"}
@@ -24,7 +38,8 @@ import threading
 import time
 import traceback
 
-from core import IS_MAC, load_memory, log, save_memory
+import plat
+from core import IS_MAC, IS_WIN, load_memory, log, save_memory
 
 from . import Feature
 
@@ -37,7 +52,17 @@ L = {
 }
 RESCAN_EVERY = 30
 SEARCH_MAX_AGE = 24 * 3600
-PRINTERS_PANE = "x-apple.systempreferences:com.apple.Print-Scan-Settings.extension"
+PRINTERS_PANE = "ms-settings:printers" if IS_WIN else "x-apple.systempreferences:com.apple.Print-Scan-Settings.extension"
+SUPPORTED = IS_MAC or IS_WIN
+
+
+def _printing():
+    """the module that knows this system's printer list (same functions in both)"""
+    if IS_WIN:
+        import winprint
+        return winprint
+    import airprint
+    return airprint
 QUIET_KINDS = ("hub", "billboard")     # plumbing: hidden unless "show hubs" is on
 
 
@@ -65,18 +90,19 @@ class USB(Feature):
 
     def info(self):
         d = super().info()
-        d["hover"] = IS_MAC
+        d["hover"] = d["hover"] and SUPPORTED
+        d["available"] = SUPPORTED
         return d
 
     # ---------- lifecycle ----------
     def start(self):
-        if not IS_MAC:
+        if not SUPPORTED:
             return
         self._mem = load_memory(self.id).get("search") or {}
         threading.Thread(target=self.run, args=("startup",), daemon=True).start()
 
     def tick(self, now):
-        if not IS_MAC or self.busy or now - self.last_scan < RESCAN_EVERY:
+        if not SUPPORTED or self.busy or now - self.last_scan < RESCAN_EVERY:
             return
         threading.Thread(target=self._rescan, daemon=True).start()
 
@@ -86,7 +112,10 @@ class USB(Feature):
     # ---------- scanning ----------
     def _scan(self):
         import driverinfo
-        import usbscan
+        if IS_WIN:
+            import usbscan_win as usbscan
+        else:
+            import usbscan
         devs = usbscan.scan()
         for d in devs:
             try:
@@ -96,6 +125,8 @@ class USB(Feature):
             d["vendor_db"], d["product_db"] = v, p
             if d["vendor"].lower() in ("generic", "") and v:
                 d["vendor"] = v
+            if d.get("generic_name") and p:
+                d["name"] = p       # Windows: "USB Composite Device" says less than the USB ID database
         self.last_scan = time.time()
         return devs
 
@@ -178,11 +209,13 @@ class USB(Feature):
         self.online = {"st": "running"}
         errs = []
         try:
-            u = driverinfo.macos_updates()
+            u = driverinfo.windows_updates() if IS_WIN else driverinfo.macos_updates()
             self.macos = {"version": u.get("os"), "updates": u.get("updates", []), "checked": u.get("checked")}
         except Exception as e:
-            errs.append("softwareupdate: %s" % str(e)[:80])
-            self.macos = {"version": driverinfo.macos_version(), "updates": None}
+            errs.append("%s: %s" % ("Windows Update" if IS_WIN else "softwareupdate", str(e)[:80]))
+            self.macos = {"version": driverinfo.windows_version() if IS_WIN else driverinfo.macos_version(),
+                          "updates": None}
+        self.macos["update"] = self._macos_update()      # for the page: what's waiting (None: nothing)
         for d in self.devices:
             for x in d["drivers"]:
                 if x["apple"]:
@@ -191,7 +224,7 @@ class USB(Feature):
                 if m and time.time() - m.get("ts", 0) < SEARCH_MAX_AGE:
                     continue
                 vendor = d.get("vendor_db") or d["vendor"]
-                q = "%s %s macOS driver download" % (vendor, d.get("product_db") or d["name"])
+                q = "%s %s %s driver download" % (vendor, d.get("product_db") or d["name"], "Windows" if IS_WIN else "macOS")
                 try:
                     links = driverinfo.search(q)
                     hint = driverinfo.newest_version_in([l["title"] for l in links])
@@ -202,9 +235,23 @@ class USB(Feature):
         self.online = {"st": "done", "checked": time.time(), "err": "; ".join(errs) or None}
 
     def _macos_update(self):
+        """the system update that's waiting: its version (macOS), how many there are (Windows), or None"""
         ups = (self.macos or {}).get("updates") or []
+        if IS_WIN:
+            n = len([u for u in ups if not u.get("driver")])
+            return str(n) if n else None
         os_up = [u for u in ups if u["title"].lower().startswith("macos")]
         return os_up[0]["version"] if os_up else None
+
+    def _wu_drivers(self):
+        """Windows: (vid, pid) of the devices Windows Update has a driver waiting for"""
+        import re
+        out = set()
+        for u in (self.macos or {}).get("updates") or []:
+            m = re.search(r"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", str(u.get("hwid") or ""), re.I) if u.get("driver") else None
+            if m:
+                out.add((m.group(1).lower(), m.group(2).lower()))
+        return out
 
     def _annotate(self):
         """add each driver's online status: apple_ok | apple_update | apple_unknown |
@@ -212,8 +259,12 @@ class USB(Feature):
         import driverinfo
         upd = self._macos_update()
         checked = self.macos is not None and self.macos.get("updates") is not None
+        waiting = self._wu_drivers() if IS_WIN else ()
         for d in self.devices:
             for x in d["drivers"]:
+                if (d["vid"], d["pid"]) in waiting:
+                    x["links"], x["hint"], x["check"] = [], "wu", "maybe_newer"     # a driver for it is on Windows Update
+                    continue
                 if x["apple"]:
                     x["check"] = "apple_update" if upd else "apple_ok" if checked else "apple_unknown"
                     continue
@@ -235,9 +286,11 @@ class USB(Feature):
     def _printer_job(self, dev, report):
         """work out what a USB printer needs; download its driver in the background if wanted.
         Returns the printer dict (also kept in self.printers and updated as it goes)."""
-        import usbscan
         p = {"key": dev["key"], "name": dev["name"], "vendor": dev["vendor"]}
         self.printers[dev["key"]] = p
+        if IS_WIN:
+            return self._printer_job_win(dev, p, report)
+        import usbscan
         try:
             q = usbscan.is_configured(dev)
             if q:
@@ -267,6 +320,34 @@ class USB(Feature):
             log("usb: printer %s needs %s (%s, %d MB)" % (mdl, drv["title"], drv["date"], drv["size"] // 1000000))
             if self.cfg.get("auto_download", True):
                 self._start_download(p, drv)
+            return self._printer_report(p, report)
+        except Exception as e:
+            log(traceback.format_exc())
+            p.update(st="error", err=str(e)[:160])
+            return p
+
+    def _printer_job_win(self, dev, p, report):
+        """Windows sets USB printers up by itself; say so, or point to the maker's driver"""
+        import driverinfo
+        import winprint
+        try:
+            q = winprint.queue_for(dev)
+            for _ in range(3 if report else 0):         # just plugged in: give Windows a moment to add it
+                if q or self.app.closing:
+                    break
+                time.sleep(5)
+                q = winprint.queue_for(dev)
+            if q:
+                p.update(st="configured", queue=q)
+                return p
+            if dev.get("ipp_usb"):
+                p.update(st="airprint")
+                log("usb: printer %s isn't in the printer list; it needs no driver" % dev["name"])
+                return self._printer_report(p, report)
+            full = dev["name"] if dev["name"].lower().startswith((dev.get("vendor") or "").lower()) \
+                else "%s %s" % (dev.get("vendor") or "", dev["name"])
+            p.update(st="none", mdl=dev["name"], links=driverinfo.search("%s printer driver Windows" % full.strip()))
+            log("usb: printer %s isn't in the printer list" % full.strip())
             return self._printer_report(p, report)
         except Exception as e:
             log(traceback.format_exc())
@@ -311,13 +392,13 @@ class USB(Feature):
 
     # ---------- AirPrint ----------
     def _air_refresh(self, discover=False):
-        if not IS_MAC:
+        if not SUPPORTED:
             return
         with self._air_lock:
             self._air_refresh_locked(discover)
 
     def _air_refresh_locked(self, discover):
-        import airprint
+        airprint = _printing()
         self.air["loading"] = True
         self.app.push_soon()
         try:
@@ -340,7 +421,7 @@ class USB(Feature):
 
     def _air_job(self, key, label, work, alias=None):
         """run a printer-list change in the background; its outcome shows by the printer"""
-        import airprint
+        airprint = _printing()
         job = self.air["jobs"][key] = {"st": "working", "what": label}
         if alias:
             self.air["jobs"][alias] = job
@@ -368,8 +449,8 @@ class USB(Feature):
 
     def api_airprint(self, key, make_default=True):
         """set the printer up with AirPrint (key: a group key, or a USB device key)"""
-        import airprint
-        if not IS_MAC:
+        airprint = _printing()
+        if not SUPPORTED:
             return False
         g = self._air_group(key)
         alias = None
@@ -385,14 +466,14 @@ class USB(Feature):
                              alias=alias)
 
     def api_airprint_address(self, text, make_default=False):
-        import airprint
-        if not IS_MAC or not str(text or "").strip():
+        airprint = _printing()
+        if not SUPPORTED or not str(text or "").strip():
             return False
         return self._air_job("addr", "add", lambda: airprint.add_address(str(text), make_default=bool(make_default)))
 
     def api_remove_extra(self, key):
         """take a printer's duplicate entries out of the printer list (the page asked first)"""
-        import airprint
+        airprint = _printing()
         g = self._air_group(key)
         if not g or not g.get("best") or not g.get("extra"):
             return False
@@ -400,14 +481,14 @@ class USB(Feature):
         return self._air_job(key, "tidy", lambda: airprint.remove(names) or {"queue": g["best"]})
 
     def api_make_default(self, key):
-        import airprint
+        airprint = _printing()
         g = self._air_group(key)
         if not g or not g.get("best"):
             return False
         return self._air_job(key, "default", lambda: airprint.make_default(g["best"]) or {"queue": g["best"]})
 
     def api_test_page(self, key):
-        import airprint
+        airprint = _printing()
         g = self._air_group(key)
         if not g or not g.get("best"):
             return False
@@ -418,17 +499,14 @@ class USB(Feature):
         return True
 
     def api_add_printer_window(self):
-        import subprocess
-
-        import airprint
-        subprocess.Popen(["open", airprint.ADD_PRINTER])
+        plat.open_path(_printing().ADD_PRINTER)
         return True
 
     # ---------- the page ----------
     def state(self):
         ds = self.visible()
         return {"devices": ds, "printers": self.printers, "busy": self.busy, "online": self.online,
-                "macos": self.macos, "last_scan": self.last_scan, "mac": IS_MAC,
+                "macos": self.macos, "last_scan": self.last_scan, "mac": IS_MAC, "os": "win" if IS_WIN else "mac",
                 "hidden": len(self.devices) - len(ds), "air": self.air}
 
     def api_check(self):
@@ -452,29 +530,25 @@ class USB(Feature):
         return True
 
     def api_open_file(self, key):
-        import subprocess
         p = self.printers.get(key) or {}
         if p.get("file"):
-            subprocess.Popen(["open", p["file"]])
+            plat.open_path(p["file"])
             return True
         return False
 
     def api_reveal_downloads(self):
-        import subprocess
-
         import driverinfo
         import os
         os.makedirs(driverinfo.DOWNLOADS, exist_ok=True)
-        subprocess.Popen(["open", driverinfo.DOWNLOADS])
+        plat.open_path(driverinfo.DOWNLOADS)
         return True
 
     def api_printer_settings(self):
-        import subprocess
-        subprocess.Popen(["open", PRINTERS_PANE])
+        plat.open_path(PRINTERS_PANE)
         return True
 
     def menu(self, lang):
-        if not IS_MAC:
+        if not SUPPORTED:
             return None
         T = L.get(lang, L["en"])
         return [{"title": T["count"](len(self.visible())), "info": True},

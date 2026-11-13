@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <title>Parcel Widget</title>
 <style>
+/* Windows draws wide grey scrollbars: thin ones, like the Mac's */
+html.win ::-webkit-scrollbar{width:8px;height:8px}
+html.win ::-webkit-scrollbar-track{background:transparent}
+html.win ::-webkit-scrollbar-thumb{background:rgba(128,128,128,.45);border-radius:4px}
 :root{--ink:#1f1f24;--frame:#2f80ed;--paper:#ffffff;--muted:#77777f;--line:#e4e2dc;--accent:#0a84ff;--green:#2f9e5b;--greenbg:#e8f6ec;--err:#c4372c;--chip:#f1efe9}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(--ink);
@@ -109,7 +113,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 .ud .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ud .sub{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ud .drv{display:flex;gap:5px;align-items:center;font-size:11px;margin-top:1px}
-.ud .drv .dn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,Menlo,monospace;font-size:10.5px}
+.ud .drv .dn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px}
 .badge{flex:none;font-size:10px;font-weight:700;padding:0 6px;border-radius:8px;background:var(--chip);color:var(--muted);white-space:nowrap}
 .badge.ok{background:var(--greenbg);color:var(--green)}
 .badge.up{background:#fff3dc;color:#b26a00}
@@ -181,6 +185,20 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 #balloon.battle .ln{font-size:13.5px}
 #balloon.battle .clopt{font-size:13.5px;padding:5px 14px}
 /* mail */
+.grepo{padding:5px 3px;border-top:1px dashed #d6e4f7;cursor:pointer;border-radius:6px}
+.grepo:hover,.gnt:hover{background:#f3f8ff}
+.grepo .gn{display:flex;align-items:center;gap:5px;font-size:12.5px}
+.grepo .gn b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.grepo .tag{border:1px solid var(--line);border-radius:8px;font-size:9.5px;padding:0 5px;color:var(--muted);flex:none}
+.grepo .ci{font-size:11px;font-weight:700;flex:none}.ci.ok{color:var(--green)}.ci.bad{color:var(--err)}.ci.wait{color:#d29922}
+.grepo .gd{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grepo .gm{font-size:10.5px;color:var(--muted);margin-top:1px}
+.grepo .gm .lg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px;vertical-align:-0.5px}
+.grepo .hot{color:#b35900;font-weight:600}
+.grepo .gloc{font-size:10.5px;color:var(--ink);margin-top:2px}
+.gnt{display:flex;flex-direction:column;padding:4px 3px;border-top:1px dashed #d6e4f7;cursor:pointer;border-radius:6px;font-size:11.5px}
+.gnt .gk{font-size:9.5px;color:var(--frame);font-weight:700}.gnt .gr{font-size:10px;color:var(--muted)}
+.gnot button:disabled{color:var(--muted);cursor:default}
 .ml{display:flex;gap:6px;align-items:flex-start;padding:5px 2px;border-top:1px dashed #d6e4f7;cursor:pointer;border-radius:6px}
 .ml:first-child{border-top:0}
 .ml:hover{background:#f2f7fe}
@@ -199,7 +217,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;color:var(
 .mgrp > button{border:0;background:none;color:var(--accent);cursor:pointer;padding:2px 0;font-size:11.5px}
 .mgrp.skip .ml{opacity:.7}
 .msbox{border:1.5px solid #cfe0f8;border-radius:10px;padding:7px 9px;margin-bottom:7px;background:#f7fbff}
-.msbox .code{font:700 18px ui-monospace,Menlo,monospace;letter-spacing:2px;margin:3px 0;cursor:pointer;-webkit-user-select:all;user-select:all}
+.msbox .code{font:700 18px ui-monospace,Menlo,Consolas,monospace;letter-spacing:2px;margin:3px 0;cursor:pointer;-webkit-user-select:all;user-select:all}
 .msbox .acts{display:flex;gap:10px;align-items:center;margin-top:4px}
 
 /* system monitor */
@@ -299,6 +317,7 @@ function clSend(rid){
 }
 const FICONS = {claude: '<svg viewBox="0 0 24 24" fill="#D97757"><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(0 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(30 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(60 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(90 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(120 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(150 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(180 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(210 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(240 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(270 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(300 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(330 12 12)"/><circle cx="12" cy="12" r="2.6"/></svg>'};
 FICONS.codex = '<svg viewBox="0 0 24 24"><rect x="2" y="3.5" width="20" height="17" rx="4.5" fill="#10A37F"/><path d="M7 9l3.6 3L7 15" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 15.6h4.6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+FICONS.github = '<svg viewBox="0 0 16 16" fill="#1f2328"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
 /* a chat run by a command line: Claude小姐 and Codex (features/chat.py); C = its words (T().cl / T().cx) */
 function chatView(id, C){
   const s = state.f[id] || {}, turns = (s.chat || {}).turns || [], fs = s.folders || [];
@@ -401,6 +420,38 @@ function chatReply(id, C, r){
     link: `<button class="lnk" onclick="ack(${r.id}); openFeature('${id}')">${esc(C.continue)} ›</button>`};
 }
 const mlOpen = {rest: false, skip: false};
+const ghOpen = {rest: false, n: false};
+function ghAgo(ts){
+  const G = T().gh, d = Date.now() / 1000 - (ts || 0);
+  if(!ts) return '';
+  if(d < 3600) return G.minAgo(Math.max(1, Math.round(d / 60)));
+  if(d < 86400) return G.hrAgo(Math.round(d / 3600));
+  if(d < 86400 * 45) return G.dayAgo(Math.round(d / 86400));
+  return new Date(ts * 1000).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {year:'numeric', month:'short'});
+}
+function ghRow(r){
+  const G = T().gh, l = r.local;
+  const ci = r.ci === 'success' ? `<span class="ci ok" title="${esc(G.ci.success)}">✓</span>` : r.ci === 'failure' || r.ci === 'error'
+    ? `<span class="ci bad" title="${esc(G.ci.failure)}">✗</span>` : r.ci === 'pending' || r.ci === 'expected' ? `<span class="ci wait" title="${esc(G.ci.pending)}">●</span>` : '';
+  const tags = (r.private ? `<span class="tag">${esc(G.private)}</span>` : '') + (r.fork ? `<span class="tag">fork</span>` : '') + (r.archived ? `<span class="tag">${esc(G.archived)}</span>` : '');
+  const meta = [r.lang ? `<span class="lg"><i style="background:${esc(r.color || '#999')}"></i>${esc(r.lang)}</span>` : '',
+    r.stars ? `★ ${r.stars}` : '', r.forks ? `⑂ ${r.forks}` : '',
+    r.issues ? `<span class="hot">${esc(G.issues(r.issues))}</span>` : '', r.prs ? `<span class="hot">${esc(G.prs(r.prs))}</span>` : '',
+    esc(G.pushed(ghAgo(r.pushed)))].filter(Boolean).join(' · ');
+  const loc = l ? `<div class="gloc" title="${esc(G.localHint)}">💻 ${esc(l.name)}${l.branch ? ' · ' + esc(l.branch) : ''}` +
+    (l.dirty ? ` · <span class="hot">${esc(G.dirty(l.dirty))}</span>` : '') + (l.ahead ? ` · <span class="hot">↑${l.ahead} ${esc(G.unpushed)}</span>` : '') +
+    (l.behind ? ` · ↓${l.behind}` : '') + (!l.dirty && !l.ahead && !l.behind ? ` · ${esc(G.clean)}` : '') +
+    ` <button class="lnk" data-f="${esc(r.full)}" onclick="event.stopPropagation(); fcall('github','reveal',this.dataset.f)">${esc(G.reveal)}</button></div>` : '';
+  return `<div class="grepo" data-u="${esc(r.url)}" onclick="fcall('github','open',this.dataset.u)" title="${esc(r.url)}">
+    <div class="gn"><b>${esc(r.name)}</b>${tags}${ci}</div>${r.desc ? `<div class="gd">${esc(r.desc)}</div>` : ''}
+    <div class="gm">${meta}</div>${loc}</div>`;
+}
+function ghNotif(n){
+  const G = T().gh;
+  return `<div class="gnt" data-u="${esc(n.url)}" onclick="fcall('github','open',this.dataset.u)" title="${esc(n.url)}">
+    <span class="gk">${esc(G.kind[n.type] || n.type)}</span><span class="gt">${esc(n.title)}</span>
+    <span class="gr">${esc(n.repo)} · ${esc(G.why[n.why] || n.why)} · ${esc(ghAgo(n.ts))}</span></div>`;
+}
 function mlAgo(ts){
   const d = Date.now() / 1000 - ts;
   return d < 20 * 3600 ? hhmm(ts) : new Date(ts * 1000).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {month:'numeric', day:'numeric'});
@@ -557,6 +608,35 @@ const FEATURES = {
     view(){ return chatView('codex', T().cx); },
     report(r){ return r.kind === 'reply' ? chatReply('codex', T().cx, r) : {html: ''}; },
   },
+  github: {
+    open(){ fcall('github', 'opened'); },
+    report(r){
+      const G = T().gh, a = r.data || {};
+      return {html: `<div class="ln">${esc(G.newNotifs(a.n))}</div>` + (a.items || []).map(ghNotif).join(''),
+        link: `<button class="lnk" onclick="ack(${r.id}); openFeature('github')">${esc(G.showAll)} ›</button>`};
+    },
+    view(){
+      const G = T().gh, s = state.f.github || {}, repos = s.repos || [], out = [];
+      if(!s.gh || s.st === 'no_gh') out.push(`<div class="ln warn">${esc(G.noGh)}</div><div class="clcode">${IS_WIN ? 'winget install GitHub.cli' : 'brew install gh'}</div>`);
+      else if(s.st === 'signed_out') out.push(`<div class="ln warn">${esc(G.signedOut)}</div><div class="clcode">gh auth login</div>`);
+      else if(s.st === 'error') out.push(`<div class="ln warn">${esc(G.err(s.err || ''))}</div>`);
+      if(s.busy && !repos.length) out.push(`<div class="ln">${esc(G.looking)}<span class="dots"></span></div>`);
+      const ns = s.notifs || [];
+      if(s.st === 'ok') out.push(`<div class="mgrp gnot"><button ${ns.length ? '' : 'disabled'} onclick="ghOpen.n=!ghOpen.n; renderBalloon()">${ns.length ? (ghOpen.n ? '▾' : '▸') : ''} 🔔 ${esc(ns.length ? G.unread(s.unread) : G.noUnread)}</button>${ghOpen.n ? ns.map(ghNotif).join('') : ''}</div>`);
+      const N = 6, top = repos.slice(0, N), rest = repos.slice(N);
+      let html = out.join('') + top.map(ghRow).join('');
+      if(rest.length) html += `<div class="mgrp"><button onclick="ghOpen.rest=!ghOpen.rest; renderBalloon()">${ghOpen.rest ? '▾' : '▸'} ${esc(G.more(rest.length))}</button>${ghOpen.rest ? rest.map(ghRow).join('') : ''}</div>`;
+      if(s.hidden) html += `<div class="ln dim" style="margin-top:4px">${esc(G.hidden(s.hidden))}</div>`;
+      const when = s.busy ? G.looking : s.last ? G.checked(hhmm(s.last)) : '';
+      return {
+        title: 'GitHub' + (s.login ? ' · ' + s.login : ''),
+        html,
+        foot: `<span class="sp">${esc(when)}</span>` + (s.url ? `<button class="lnk" onclick="fcall('github','open','${esc(s.url)}')">${esc(G.profile)} ↗</button>` : '') +
+          `<button class="lnk" ${s.busy ? 'disabled' : ''} onclick="fcall('github','refresh')">${esc(G.refresh)}</button>`,
+        wide: true,
+      };
+    },
+  },
   mail: {
     open(){ fcall('mail', 'opened'); },
     report(r){
@@ -570,7 +650,7 @@ const FEATURES = {
       out.push(msBox(s));
       const ap = s.apple || {};
       if(ap.st === 'not_running') out.push(`<div class="ln dim">${esc(M.appleOff)} <button class="lnk" onclick="fcall('mail','open_mail_app')">${esc(M.openMail)}</button></div>`);
-      else if(ap.st === 'denied') out.push(`<div class="ln warn">${esc(M.appleDenied)} <button class="lnk" onclick="api().open_url('x-apple.systempreferences:com.apple.preference.security?Privacy_Automation')">${esc(M.allow)} ›</button></div>`);
+      else if(ap.st === 'denied') out.push(`<div class="ln warn">${esc(M.appleDenied)}` + (IS_WIN ? '' : ` <button class="lnk" onclick="api().open_url('x-apple.systempreferences:com.apple.preference.security?Privacy_Automation')">${esc(M.allow)} ›</button>`) + '</div>');
       else if(ap.st === 'error') out.push(`<div class="ln warn">${esc(M.appleErr(ap.err || ''))}</div>`);
       if(s.busy && !items.length) out.push(`<div class="ln">${esc(s.busy === 'outlook' ? M.lookingMs : s.busy === 'apple' ? M.lookingApple : M.looking)}<span class="dots"></span></div>`);
       const imp = items.filter(m => m.level === 'important'), rest = items.filter(m => m.level === 'normal'), skip = items.filter(m => m.level === 'skip');
@@ -662,7 +742,7 @@ function linkList(links){
 }
 function badge(x){
   const B = T().u.b, tip = T().u.tip[x.check] || '';
-  const up = (state.f.usb || {}).macos || {}, upd = ((up.updates || []).find(u => /^macos/i.test(u.title)) || {}).version;
+  const up = (state.f.usb || {}).macos || {}, upd = up.update !== undefined ? up.update : ((up.updates || []).find(u => /^macos/i.test(u.title)) || {}).version;
   const txt = x.check === 'apple_update' ? B.apple_update(upd || '') : x.check === 'maybe_newer' ? B.maybe_newer(x.hint) : B[x.check] || '';
   const cls = x.check === 'apple_ok' || x.check === 'ok' ? 'ok' : x.check === 'apple_update' || x.check === 'maybe_newer' ? 'up' : '';
   return txt ? `<span class="badge ${cls}" title="${esc(tip)}">${esc(txt)}</span>` : '';
@@ -707,6 +787,7 @@ function prLines(p){
       <button class="lnk" onclick="fcall('usb','printer_settings')">${esc(U.add)} ›</button>`;
   } else if(p.st === 'none'){
     l = P.none(nm) + linkList(p.links);
+    if(IS_WIN) acts = `<button class="lnk" onclick="fcall('usb','add_printer_window')">🖨 ${esc(U.add)}</button>`;   // Settings › Printers & scanners
   } else if(p.st === 'error'){
     l = `<span class="warn">${esc(P.error(p.err || ''))}</span>`;
     acts = `<button class="lnk" onclick="fcall('usb','download','${k}')">${esc(U.retry)}</button>`;
@@ -883,14 +964,21 @@ function sizes(){
   return {W, H, bw: 262, bmax: Math.max(240, (state.max_h || 390) / z)};
 }
 function hoverSpots(n){
-  // buttons on an arc over her head, leaning towards the free side (x from her left edge)
-  const {W, H} = sizes(), r = H * .58, cx = W / 2, cy = H * .3, out = [];
-  const a0 = -172, a1 = n > 3 ? -70 : -76;   // stay left of her head: the window has no room on her right
+  // buttons evenly round a full circle around her, the first one at the top (x, y from her top-left)
+  const {W, H} = sizes(), cx = W / 2, cy = H / 2, out = [];
+  const r = Math.max(Math.max(W, H) * .56, n * 42 / (2 * Math.PI));      // never closer than ~42px apart
   for(let i = 0; i < n; i++){
-    const a = (n === 1 ? (a0 + a1) / 2 : a0 + (a1 - a0) * i / (n - 1)) * Math.PI / 180;
+    const a = (-90 + 360 * i / Math.max(1, n)) * Math.PI / 180;
     out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
   }
   return out;
+}
+// room kept around her for the circle of buttons (a button is 34px, 40 when hovered; the name label sits above the top one)
+function hoverPad(){
+  const {W, H} = sizes(), spots = hoverSpots(((state.features || []).filter(f => f.hover)).length || 1);
+  const xs = spots.map(s => s[0]), ys = spots.map(s => s[1]);
+  return {l: Math.max(0, 24 - Math.min(...xs)), r: Math.max(0, Math.max(...xs) + 24 - W),
+          t: Math.max(0, 50 - Math.min(...ys)), b: Math.max(0, Math.max(...ys) + 24 - H)};
 }
 let lastFit = '';
 function layout(){
@@ -899,17 +987,14 @@ function layout(){
   stage.className = right ? 'side-right' : 'side-left';
   petEl.style.width = W + 'px'; petEl.style.height = H + 'px';
   let SW, SH;
-  // room for the hover buttons is always kept, so the window doesn't jump when they appear
-  const spots = hoverSpots(((state.features || []).filter(f => f.hover)).length || 3);
-  // a button is 34px (40 when hovered) and its name label sits above it: keep room for both,
-  // or the window cuts the label off
-  const extraX = Math.max(0, -Math.min(...spots.map(s => s[0] - 48)));
-  const extraY = Math.max(0, -Math.min(...spots.map(s => s[1] - 50)));
-  SW = W + extraX; SH = H + extraY;
+  // room for the circle of buttons is always kept, so the window doesn't jump when they appear
+  const pad = hoverPad(), ps = right ? pad.r : pad.l;          // ps: room on her side, below her: pad.b
+  petEl.style.bottom = pad.b + 'px'; petEl.style.right = right ? ps + 'px' : ''; petEl.style.left = right ? '' : ps + 'px';
+  SW = W + pad.l + pad.r; SH = H + pad.t + pad.b;
   if(b.classList.contains('show')){
     const big = b.classList.contains('battle');
     $('bbody').style.maxHeight = Math.max(80, (big ? Math.max(bmax, BATTLE_H) : bmax) - H * .56 - 80) + 'px';
-    const over = W * .7, lift = H * .6;
+    const over = ps + W * .7, lift = pad.b + H * .6;
     b.style.bottom = lift + 'px';
     b.style.left = b.style.right = '';
     b.style[right ? 'right' : 'left'] = over + 'px';
@@ -957,7 +1042,7 @@ function showTip(btn){
 function placeHover(SW, SH){
   const {W, H} = sizes(), right = (state.skin_side || 'right') === 'right';
   const btns = [...$('hover').querySelectorAll('.fbtn')], spots = hoverSpots(btns.length);
-  const petLeft = right ? SW - W : 0, petTop = SH - H;
+  const pad = hoverPad(), petLeft = right ? SW - W - pad.r : pad.l, petTop = SH - H - pad.b;
   btns.forEach((el, i) => {
     let [x, y] = spots[i];
     if(!right) x = W - x;          // mirror: lean the other way when she stands on the left

@@ -1,8 +1,9 @@
 # Parcel Widget
 
-> **macOS only for now** (macOS 11+, Apple Silicon or Intel). A Windows version is planned.
+> **macOS** (11+, Apple Silicon or Intel) and **Windows** (10 version 2004+ / 11). The Windows version does
+> the same jobs with Windows' own parts: see [Windows](#windows).
 
-A little animated character on your macOS desktop who does small jobs for you and reports in a comic speech balloon.
+A little animated character on your desktop who does small jobs for you and reports in a comic speech balloon.
 Her first jobs: finding tracking numbers in your Gmail and checking them on [parcelsapp.com](https://parcelsapp.com),
 and a CPU / memory / network monitor drawn as candlestick charts.
 
@@ -49,6 +50,10 @@ and a CPU / memory / network monitor drawn as candlestick charts.
   of `~/.codex/config.toml`; the command line inside the ChatGPT app is found by itself). Codex can't ask for
   permission in such a run, so it works in its sandbox: it may change files in the folder you picked, nowhere
   else, and has no network. `"codex": {"sandbox": "read-only"}` in `config.json` makes it look-only.
+- 🐙 **GitHub**: your repositories (latest push first: private or public, language, stars, open issues and
+  pull requests, whether checks passed), your unread notifications, and the copies on this Mac (uncommitted
+  files, commits not pushed). Asked through the GitHub command line (`gh`), signed in as you: the widget never
+  sees your token. Forks, archived repositories, background checks and where to look for copies: Settings → 🐙 GitHub.
 - 📊 **System monitor**: CPU, memory, download and upload as candlestick charts (5 s – 1 min per candle,
   red-up or green-up colors)
 - 🔌 **USB**: lists what's plugged in over USB and the driver running each device (bundle, version, kext or
@@ -70,8 +75,48 @@ and a CPU / memory / network monitor drawn as candlestick charts.
 - Animated **skins**, and **custom skins** an image AI draws from your description or picture
 - Screen-size presets, keep on top, English / 中文, lives in the **menu bar** (no Dock icon)
 
+## Windows
+Everything above works on Windows too; where macOS and Windows differ, she uses the Windows way:
+
+| | macOS | Windows |
+|---|---|---|
+| Where she lives | menu bar icon, no Dock icon | **tray icon** near the clock, no taskbar button. Left-click it: show / hide her; right-click it (or her): the menu |
+| 📦 Parcels | Google Chrome by default | **Microsoft Edge** by default (it's on every PC); Chrome, Brave, Firefox… in Settings |
+| ✉️ Mail on this computer | Apple Mail | the **classic Outlook** desktop app (it has to be open). The new Outlook and the Windows Mail app don't answer other programs: use the Microsoft sign-in for those |
+| Saved passwords | encrypted file, Touch ID | encrypted file (Windows data protection: only your Windows account on this PC can open it), **Windows Hello** (fingerprint, face or PIN) |
+| 🤖 Claude Code hook | `/usr/bin/python3 claude_hook.py`, a private socket | `ParcelWidgetHook.exe` next to the app (from source: your Python), a port on this PC only with a password |
+| ✨ Claude小姐 / 🌀 Codex | `claude` / `codex` command lines | the same (`claude`, `npm install -g @openai/codex`); what you type is handed over on standard input |
+| 🐙 GitHub | `brew install gh` | `winget install GitHub.cli` |
+| 🔌 USB devices and drivers | ioreg; Apple's drivers update with macOS (Software Update) | the registry; Windows' drivers update with **Windows Update**, which she asks - driver updates waiting there are marked on the device |
+| A USB printer that isn't set up | AirPrint, or Apple's driver downloaded for you | Windows adds it by itself (plug and play); if it didn't: the maker's driver links and a button to Settings › Printers & scanners |
+| 🖨 Printers | one-click AirPrint (CUPS) | one-click **driverless** setup of network printers (Microsoft IPP Class Driver, `Add-Printer -IppURL`), found nearby or by address; duplicates, default, test page |
+| More than one copy, sleep / wake, skins, 📊 monitor, 👉 poke | ✓ | ✓ |
+| Data folder | `~/Library/Application Support/ParcelWidget` | `%APPDATA%\ParcelWidget` |
+
+Needs the **WebView2 runtime** (part of Windows 11 and of current Windows 10) and, from source, **Python 3.10 - 3.13**
+with the .NET Framework 4.8 that Windows already has.
+
 ## Install
-### Option A: the app (DMG)
+### Windows
+**From source** (needs [Python](https://www.python.org/downloads/windows/), "Add python.exe to PATH" ticked):
+```bat
+git clone https://github.com/cxlgo64/ParcelWidget.git
+cd ParcelWidget
+install.bat
+```
+`install.bat` creates `.venv`, installs what she needs, makes her start when you sign in and starts her.
+Start by hand: `start.bat`. No more auto-start: `uninstall_autostart.bat`.
+
+**Build the app** (a folder with `Parcel Widget.exe`, zipped; no Python needed to run it):
+```bat
+packaging\build_win.bat
+```
+-> `dist\ParcelWidget-<version>-Windows-x64.zip`. Unzip it anywhere and run `Parcel Widget.exe` (Windows may say
+"Windows protected your PC" the first time, because the app isn't signed: More info → Run anyway).
+To start it when you sign in: press Win+R, type `shell:startup`, and put a shortcut to `Parcel Widget.exe` there
+(add ` --autostart` to the shortcut's target and she stays quiet if she's already open).
+
+### macOS, option A: the app (DMG)
 1. Download `ParcelWidget-<version>-macOS-arm64.dmg` from [Releases](https://github.com/cxlgo64/ParcelWidget/releases)
    (Apple Silicon; on an Intel Mac build it yourself, see below).
 2. Open it and drag **Parcel Widget** into **Applications**.
@@ -84,7 +129,7 @@ and a CPU / memory / network monitor drawn as candlestick charts.
 Parcel lookups use your installed **Google Chrome** by default (change it in Settings → Parcels).
 To start it at login: System Settings → General → Login Items → ＋ → Parcel Widget.
 
-### Option B: from source
+### macOS, option B: from source
 Requires Python 3.9+.
 
 ```bash
@@ -97,7 +142,7 @@ chmod +x *.command
 - Start manually: `./start.command`
 - Remove auto-start: `./uninstall_autostart.command`
 
-### Build the DMG yourself
+### macOS: build the DMG yourself
 ```bash
 ./packaging/build_mac.sh     # -> dist/ParcelWidget-<version>-macOS-<arch>.dmg
 ```
@@ -163,7 +208,14 @@ With Claude Code, the `make-skin` skill in `.claude/skills/` knows how to make, 
   the encrypted vault. Settings → ✉️ Mail → Sign out removes it.
 - Claude Code: the hook talks only to the widget, over a socket in the data folder that only you can open.
   Claude's summaries and questions stay in her balloon until confirmed; nothing is saved or sent anywhere.
-- Shipments, settings and logs live in `~/Library/Application Support/ParcelWidget/`, outside this repo.
+- GitHub: asked through `gh` (which keeps its own sign-in); repositories and notifications stay in her balloon,
+  nothing is saved. Local copies are only read with `git status`, never changed or fetched.
+- Shipments, settings and logs live in `~/Library/Application Support/ParcelWidget/` (Windows:
+  `%APPDATA%\ParcelWidget\`), outside this repo.
+- Windows: the vault is encrypted with Windows' data protection (DPAPI) for your Windows account, and she asks
+  for Windows Hello instead of Touch ID (if Hello isn't set up on the PC, she doesn't ask). The Claude Code hook
+  reaches her through a port that only accepts connections from this PC, and has to show a password kept in
+  your data folder. The USB check asks Windows Update what's waiting; nothing is downloaded or installed.
 - The USB check sends vendor and product names (not serial numbers) to DuckDuckGo to search for drivers,
   and downloads driver lists and printer drivers only from Apple's servers (and linux-usb.org's ID list).
 
@@ -182,6 +234,10 @@ Many Amazon emails only contain a "Track package" button with no number. Add tho
 - **Debug one number** (quit the widget first):
   `.venv/bin/python debug_track.py 1Z999AA10123456784 --browser firefox`
 - **Logs**: Settings → 📝 Log (live, filter by checks / errors), or `~/Library/Application Support/ParcelWidget/widget.log`
+  (Windows: `%APPDATA%\ParcelWidget\widget.log`; from source use `.venv\Scripts\python.exe` where this page says `.venv/bin/python`)
+- **Windows, she has a solid background instead of a see-through one**: update the WebView2 runtime (Microsoft Edge
+  updates it), and pywebview (`.venv\Scripts\pip install -U pywebview`)
+- **Windows, no tray icon**: it may be hidden behind the `^` arrow near the clock; drag it out to keep it visible
 - **Tests**: `.venv/bin/python -m pytest test_parser.py`
 
 ## Project layout
@@ -189,18 +245,22 @@ Many Amazon emails only contain a "Track package" button with no number. Add tho
 |---|---|
 | `app.py` | Windows, scheduler loop, JS ↔ Python API |
 | `core.py` | Paths, config, log, passwords, skins, size presets |
-| `vault.py` | Saved passwords and API keys: encrypted file, unlocked with Touch ID |
-| `power.py` | Sleep / wake of the computer (macOS) |
-| `mailread.py` | Reading the inbox: Apple Mail (JavaScript for Automation), Outlook (Microsoft Graph, device code sign-in), the first sort |
+| `plat.py` | The small differences between macOS and Windows: opening things, file locks, PowerShell |
+| `vault.py` | Saved passwords and API keys: encrypted file, unlocked with Touch ID / Windows Hello |
+| `power.py` | Sleep / wake of the computer |
+| `mailread.py` | Reading the inbox: Apple Mail (JavaScript for Automation) or the classic Outlook on Windows (PowerShell), Outlook through Microsoft (Graph, device code sign-in), the first sort |
 | `claude_hook.py` | Claude Code hook: hands Claude's events to her over a local socket, returns your answer |
 | `features/` | The character's jobs: `parcels.py`, `mail.py`, `claude.py`, `codex.py` (both chats: `chat.py`), `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
 | `usbscan.py` | USB devices, their drivers and the printers (macOS: ioreg, kmutil, CUPS) |
+| `usbscan_win.py` | USB devices and their drivers (Windows: the registry, the configuration manager) |
 | `instance.py` | Which copy this is: one already open → go to it or open another; each copy's data folder |
 | `airprint.py` | The printer list grouped by printer, one-click AirPrint, duplicates (macOS: CUPS lpadmin, ipptool) |
-| `driverinfo.py` | Online lookups for the USB check: USB IDs, Software Update, web search, Apple's printer drivers |
+| `winprint.py` | The same for Windows: driverless setup (IPP class driver), finding printers nearby (mDNS), duplicates |
+| `driverinfo.py` | Online lookups for the USB check: USB IDs, Software Update / Windows Update, web search, Apple's printer drivers |
 | `reports.py` | Reports shown in her balloon until confirmed |
 | `menus.py` | The menu as data (menu bar icon and right-click) |
 | `menubar.py` | macOS menu bar icon, right-click menu |
+| `wintray.py` | Windows tray icon, right-click menu |
 | `mail_scanner.py` | Gmail IMAP scan |
 | `tracking_parser.py` | Tracking-number regexes, delivered detection |
 | `tracker.py` | parcelsapp lookup via Playwright |
@@ -209,7 +269,8 @@ Many Amazon emails only contain a "Track package" button with no number. Add tho
 | `ui/index.html` | The character, her balloon and hover buttons; each job's page side (`FEATURES`) |
 | `ui/settings.html` | The settings window |
 | `ui/i18n.js` | English / 中文 strings |
-| `packaging/` | Building the macOS app + DMG (PyInstaller) |
+| `packaging/` | Building the macOS app + DMG and the Windows app + zip (PyInstaller) |
+| `install.bat`, `start.bat`, `uninstall_autostart.bat` | Windows: install from source, start, stop starting at sign-in (the `.command` files are the macOS ones) |
 
 ## License
 MIT

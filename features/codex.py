@@ -1,4 +1,4 @@
-"""Codex: type a task in her balloon, run by OpenAI's Codex command line (macOS).
+"""Codex: type a task in her balloon, run by OpenAI's Codex command line (macOS and Windows).
 
 Like Claude小姐 (features/claude.py), with `codex exec`: one non-interactive run in the folder
 you picked, signed in as you (the ChatGPT account Codex already uses, its model and settings
@@ -15,16 +15,20 @@ import os
 import re
 import time
 
-from core import save_config
+from core import IS_MAC, IS_WIN, save_config
 
 from .chat import Chat, which
 
-CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex")
+CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.join(os.path.expanduser("~"), ".codex")
 
-# the ChatGPT / Codex desktop apps carry the command line inside them
+# the ChatGPT / Codex desktop apps carry the command line inside them (macOS; on Windows it's
+# found on the PATH or in npm's folder: npm install -g @openai/codex)
 APP_BINS = ["/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
             "/Applications/Codex.app/Contents/Resources/codex-cli/bin/codex",
-            "/Applications/Codex.app/Contents/Resources/codex"]
+            "/Applications/Codex.app/Contents/Resources/codex"] if IS_MAC else []
+# how Codex wraps the commands it runs, taken off before showing them
+SHELLS = re.compile(r'^(?:/bin/zsh -lc |/bin/bash -lc |zsh -lc |bash -lc |'
+                    r'"?(?:[A-Za-z]:[^"]*[\\/])?(?:pwsh|powershell)(?:\.exe)?"? (?:-NoProfile )?-Command )', re.I)
 SANDBOXES = ("workspace-write", "read-only")
 
 L = {
@@ -68,7 +72,8 @@ class Codex(Chat):
     def models(self):
         """[{slug, name, efforts, context}] from Codex's model list (~/.codex/models_cache.json)"""
         try:
-            d = json.load(open(os.path.join(CODEX_HOME, "models_cache.json")))
+            with open(os.path.join(CODEX_HOME, "models_cache.json"), encoding="utf-8") as f:
+                d = json.load(f)
         except (OSError, ValueError):
             return []
         out = []
@@ -157,17 +162,24 @@ class Codex(Chat):
         s = self.cfg.get("sandbox")
         return s if s in SANDBOXES else SANDBOXES[0]
 
+    def _stdin(self, turn):
+        return turn["q"] if IS_WIN else None
+
     def _cmd(self, b, turn, cwd):
         # options before "--": what you typed is never read as an option
-        opts = ["--json", "--skip-git-repo-check", "-c", 'sandbox_mode="%s"' % self.sandbox()]
+        # (Windows: no quotes inside the arguments, they don't survive a .cmd script; Codex takes a
+        # bare word as text all the same. What you typed goes in on standard input: "-")
+        val = "%s" if IS_WIN else '"%s"'
+        opts = ["--json", "--skip-git-repo-check", "-c", "sandbox_mode=" + val % self.sandbox()]
         o = self.run_opts()
         if o["model"] != "default":
             opts += ["-m", o["model"]]
         if o["effort"] != "default":
-            opts += ["-c", 'model_reasoning_effort="%s"' % o["effort"]]
+            opts += ["-c", "model_reasoning_effort=" + val % o["effort"]]
+        q = "-" if IS_WIN else turn["q"]
         if self.chat.get("sid"):
-            return [b, "exec", "resume"] + opts + ["--", self.chat["sid"], turn["q"]]
-        return [b, "exec"] + opts + ["--", turn["q"]]
+            return [b, "exec", "resume"] + opts + ["--", self.chat["sid"], q]
+        return [b, "exec"] + opts + ["--", q]
 
     def _on_stream(self, m, turn):
         t = m.get("type")
@@ -182,12 +194,13 @@ class Codex(Chat):
                     turn["step"] = turn["a"].splitlines()[0][:160]
             elif kind == "command_execution":
                 cmd = it.get("command") or ""
-                for sh in ("/bin/zsh -lc ", "/bin/bash -lc ", "zsh -lc ", "bash -lc "):
-                    if cmd.startswith(sh):
-                        cmd = cmd[len(sh):].strip("'\"")
+                m = SHELLS.match(cmd)
+                if m:
+                    cmd = cmd[m.end():].strip("'\"")
                 turn["step"] = ("$ " + cmd)[:160]
             elif kind == "file_change":
-                paths = [os.path.basename(c.get("path") or "") for c in it.get("changes") or [] if isinstance(c, dict)]
+                paths = [(c.get("path") or "").replace("\\", "/").rsplit("/", 1)[-1] for c in it.get("changes") or []
+                         if isinstance(c, dict)]
                 turn["step"] = ("✎ " + ", ".join(p for p in paths if p))[:160]
             elif kind == "mcp_tool_call":
                 turn["step"] = ("%s › %s" % (it.get("server") or "", it.get("tool") or ""))[:160]

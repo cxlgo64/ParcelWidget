@@ -1,4 +1,5 @@
-"""Reading the inbox: Apple Mail (AppleScript) and Outlook (Microsoft Graph), plus a first sort.
+"""Reading the inbox: the mail app on this computer (Apple Mail on macOS, the classic Outlook
+on Windows) and Outlook through Microsoft (Microsoft Graph), plus a first sort.
 
 Apple Mail
   The Mail app is asked through AppleScript (macOS asks once whether the widget may control
@@ -6,15 +7,22 @@ Apple Mail
   where asking message by message takes minutes. If Mail isn't open, nothing is read (opening
   Mail behind your back would be rude); open_apple_mail() opens it when you ask.
 
+Classic Outlook (Windows)
+  The Outlook that comes with Office answers other programs (COM); the widget asks it through
+  Windows PowerShell, which is part of Windows. Same rules as Apple Mail: only the inboxes, only
+  mail newer than a cutoff, nothing is changed, and Outlook has to be open already. In the code
+  this source keeps the name "apple" (the mail app on this computer). The New Outlook and the
+  Windows Mail app don't answer other programs: use the Microsoft sign-in below for those.
+
 Outlook (optional)
-  The New Outlook for Mac doesn't let other apps read its mail, so the widget reads it from
+  The New Outlook (Mac and Windows) doesn't let other apps read its mail, so the widget reads it from
   Microsoft directly: sign in once with a code (device code sign-in, no password is typed into
   the widget). That needs an "app ID" from Microsoft's app registration page (see the Mail
   settings tab). The sign-in is kept as a refresh token in the encrypted vault (vault.py).
   Only Mail.Read and User.Read are asked for: the widget can read mail, never send or delete.
 
 The first sort (screen())
-  Simple rules, no AI and nothing leaves the Mac: replies, real people, codes and "action
+  Simple rules, no AI and nothing leaves the computer: replies, real people, codes and "action
   needed" mail is important; job alerts, ads, newsletters and no-reply senders can be skipped;
   your own rules (always important / always skip) come first.
 """
@@ -26,6 +34,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+from plat import HIDE, IS_WIN, powershell
 
 # ================= Apple Mail =================
 # JavaScript for Automation: hands back clean JSON (AppleScript text mangles odd subjects)
@@ -59,6 +69,8 @@ class MailError(Exception):
 
 
 def apple_running():
+    if IS_WIN:
+        return outlook_running()
     try:
         r = subprocess.run(["osascript", "-e", 'application "Mail" is running'], capture_output=True, timeout=10)
         return r.stdout.decode().strip() == "true"
@@ -67,6 +79,13 @@ def apple_running():
 
 
 def open_apple_mail():
+    if IS_WIN:
+        import os
+        try:
+            os.startfile("outlook.exe")       # noqa: S606 - found through Windows' list of installed apps
+        except OSError:
+            raise MailError("error", "Outlook isn't installed")
+        return
     subprocess.Popen(["open", "-g", "-a", "Mail"])
 
 
@@ -74,6 +93,8 @@ def apple_recent(hours=24, limit=80):
     """newest inbox mail of the last `hours` from every Mail account (Mail must be open)"""
     if not apple_running():
         raise MailError("not_running")
+    if IS_WIN:
+        return _rows(outlook_rows(hours, limit))
     try:
         r = subprocess.run(["osascript", "-l", "JavaScript", "-", str(int(hours)), str(int(limit))],
                            input=_MAIL_JS.encode(), capture_output=True, timeout=300)
@@ -88,6 +109,11 @@ def apple_recent(hours=24, limit=80):
         rows = json.loads(r.stdout.decode(errors="replace") or "[]")
     except ValueError:
         raise MailError("error", "Mail's answer couldn't be read")
+    return _rows(rows)
+
+
+def _rows(rows):
+    """what the mail app handed back -> messages"""
     out, errors = [], []
     for x in rows:
         if "error" in x:
@@ -105,7 +131,79 @@ def apple_recent(hours=24, limit=80):
 
 def apple_open(mid):
     """show one message in Mail"""
+    if IS_WIN:
+        powershell(_OUTLOOK_OPEN, [mid], timeout=60)
+        return
     subprocess.Popen(["open", "message://" + urllib.parse.quote("<%s>" % mid, safe="")])
+
+
+# ================= classic Outlook (Windows) =================
+# Sorted newest first and read until the cutoff: Outlook's own date filter wants dates written the
+# way this PC's region writes them, which is easy to get wrong.
+_OUTLOOK_PS = r'''
+$hrs = [double]$env:PW_ARG0; $maxn = [int]$env:PW_ARG1
+$cutoff = (Get-Date).AddHours(-$hrs); $epoch = [datetime]'1970-01-01'
+$ol = [Runtime.InteropServices.Marshal]::GetActiveObject('Outlook.Application')
+$ns = $ol.GetNamespace('MAPI')
+$out = New-Object System.Collections.ArrayList
+foreach ($store in $ns.Stores) {
+  $name = $store.DisplayName
+  try {
+    $items = $store.GetDefaultFolder(6).Items        # 6: the inbox
+    $items.Sort('[ReceivedTime]', $true)
+    $n = 0
+    foreach ($m in $items) {
+      if ($m.Class -ne 43) { continue }               # 43: a mail message (not a meeting request, a receipt…)
+      if ($m.ReceivedTime -lt $cutoff -or $n -ge $maxn) { break }
+      $addr = $m.SenderEmailAddress
+      if ($m.SenderEmailType -eq 'EX') {              # Exchange: an internal name; ask for the real address
+        try { $x = $m.Sender.GetExchangeUser(); if ($x) { $addr = $x.PrimarySmtpAddress } } catch {}
+      }
+      $sender = if ($addr) { "$($m.SenderName) <$addr>" } else { "$($m.SenderName)" }
+      [void]$out.Add(@{ account = $name; mid = $m.EntryID; read = (-not $m.UnRead); sender = $sender;
+        subject = "$($m.Subject)"; ts = [int64](($m.ReceivedTime.ToUniversalTime() - $epoch).TotalSeconds) })
+      $n++
+    }
+  } catch { [void]$out.Add(@{ account = $name; error = "$($_.Exception.Message)" }) }
+}
+ConvertTo-Json -InputObject @($out) -Compress -Depth 3
+'''
+_OUTLOOK_OPEN = r'''
+$ol = [Runtime.InteropServices.Marshal]::GetActiveObject('Outlook.Application')
+$m = $ol.GetNamespace('MAPI').GetItemFromID($env:PW_ARG0)
+$m.Display()
+try { $ol.ActiveWindow().Activate() } catch {}
+'''
+
+
+def outlook_running():
+    """is the classic Outlook open? (the New Outlook is olk.exe: it doesn't answer other programs)"""
+    try:
+        r = subprocess.run(["tasklist", "/FI", "IMAGENAME eq OUTLOOK.EXE", "/FO", "CSV", "/NH"],
+                           capture_output=True, timeout=15, **HIDE)
+        return b"outlook.exe" in r.stdout.lower()
+    except Exception:
+        return False
+
+
+def outlook_rows(hours, limit):
+    code, out, err = powershell(_OUTLOOK_PS, [int(hours), int(limit)], timeout=300)
+    if code == 124:
+        raise MailError("error", "Outlook took too long to answer")
+    if code != 0:
+        # 0x800401E3: Outlook is open but not reachable (it runs as administrator and the widget
+        # doesn't, or the other way round); 0x80040154 / 0x800401F3: the classic Outlook isn't installed
+        low = err.lower()
+        if "800401e3" in low or "operation unavailable" in low or "80040154" in low or "800401f3" in low:
+            raise MailError("not_running", err)
+        if "80004005" in low or "denied" in low or "0x80070005" in low:
+            raise MailError("denied", err)
+        raise MailError("error", err.splitlines()[0][:200] if err else "PowerShell failed")
+    try:
+        rows = json.loads(out.strip() or "[]")
+    except ValueError:
+        raise MailError("error", "Outlook's answer couldn't be read")
+    return rows if isinstance(rows, list) else [rows]
 
 
 def split_sender(s):
