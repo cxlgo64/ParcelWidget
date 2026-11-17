@@ -172,6 +172,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
   <div class="hint" style="margin-top:0" data-t="mlS.intro"></div>
   <label class="chk" style="color:var(--text)"><input type="checkbox" id="m_apple" onchange="saveMail()"><span data-t="mlS.apple"></span></label>
   <div class="hint" data-t="mlS.appleHint"></div>
+  <div id="m_olkRow"><label class="chk" style="color:var(--text)"><input type="checkbox" id="m_olk" onchange="saveMail()"><span data-t="mlS.olk"></span></label>
+  <div class="hint" data-t="mlS.olkHint"></div></div>
   <div class="row" style="margin-top:10px"><span data-t="mlS.every"></span><select id="m_every" style="width:80px" onchange="saveMail()"></select><span data-t="mlS.minutes"></span>
     <span style="width:14px"></span><span data-t="mlS.hours"></span><select id="m_hours" style="width:80px" onchange="saveMail()"></select><span data-t="mlS.hoursUnit"></span></div>
   <label class="chk" style="color:var(--text)"><input type="checkbox" id="m_notify" onchange="saveMail()"><span data-t="mlS.notify"></span></label>
@@ -520,6 +522,7 @@ function fillMail(){
   if(!s) return;
   const act = document.activeElement;
   $('m_apple').checked = !!s.apple; $('m_notify').checked = !!s.notify;
+  $('m_olkRow').style.display = s.olk_avail ? '' : 'none'; $('m_olk').checked = !!s.olk;      // Outlook for Mac
   $('m_every').innerHTML = s.everys.map(v => `<option value="${v}" ${v === s.every ? 'selected' : ''}>${v}</option>`).join('');
   $('m_hours').innerHTML = s.hourss.map(v => `<option value="${v}" ${v === s.hours ? 'selected' : ''}>${v}</option>`).join('');
   $('m_tenant').innerHTML = Object.entries(S.tenants).map(([k, v]) => `<option value="${k}" ${k === s.ms_tenant ? 'selected' : ''}>${esc(v)}</option>`).join('');
@@ -529,7 +532,7 @@ function fillMail(){
   $('m_signout').style.display = acct ? '' : 'none';
 }
 async function saveMail(){
-  Object.assign(settings.mail, {apple: $('m_apple').checked, notify: $('m_notify').checked, every: +$('m_every').value,
+  Object.assign(settings.mail, {apple: $('m_apple').checked, olk: $('m_olk').checked, notify: $('m_notify').checked, every: +$('m_every').value,
     hours: +$('m_hours').value, vip: $('m_vip').value, mute: $('m_mute').value,
     ms_client_id: $('m_client').value.trim(), ms_tenant: $('m_tenant').value});
   await api().save_settings('mail', settings.mail); toast(T().saved);

@@ -82,7 +82,7 @@ Everything above works on Windows too; where macOS and Windows differ, she uses 
 |---|---|---|
 | Where she lives | menu bar icon, no Dock icon | **tray icon** near the clock, no taskbar button. Left-click it: show / hide her; right-click it (or her): the menu |
 | 📦 Parcels | Google Chrome by default | **Microsoft Edge** by default (it's on every PC); Chrome, Brave, Firefox… in Settings |
-| ✉️ Mail on this computer | Apple Mail | the **classic Outlook** desktop app (it has to be open). The new Outlook and the Windows Mail app don't answer other programs: use the Microsoft sign-in for those |
+| ✉️ Mail on this computer | Apple Mail, and the **Outlook app** if it's installed (the legacy Outlook; it has to be open) | the **classic Outlook** desktop app (it has to be open). The new Outlook and the Windows Mail app don't answer other programs: use the Microsoft sign-in for those |
 | Saved passwords | encrypted file, Touch ID | encrypted file (Windows data protection: only your Windows account on this PC can open it), **Windows Hello** (fingerprint, face or PIN) |
 | 🤖 Claude Code hook | `/usr/bin/python3 claude_hook.py`, a private socket | `ParcelWidgetHook.exe` next to the app (from source: your Python), a port on this PC only with a password |
 | ✨ Claude小姐 / 🌀 Codex | `claude` / `codex` command lines | the same (`claude`, `npm install -g @openai/codex`); what you type is handed over on standard input |

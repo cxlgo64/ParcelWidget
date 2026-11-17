@@ -1,5 +1,5 @@
-"""Mail: a first look at what's in your inboxes (Apple Mail - on Windows the classic Outlook -
-and Outlook through Microsoft if you sign in).
+"""Mail: a first look at what's in your inboxes (Apple Mail - on Windows the classic Outlook -,
+on a Mac also the Outlook app if it's there, and Outlook through Microsoft if you sign in).
 
 She reads the newest inbox mail (subject and sender, nothing is changed or marked read) and
 sorts it: important / the rest / can skip (see mailread.screen()). Clicking a message opens it
@@ -55,11 +55,12 @@ class Mail(Feature):
     def __init__(self, app):
         super().__init__(app)
         self._lock = threading.Lock()
-        self.busy = None              # None | "apple" | "outlook"
+        self.busy = None              # None | "apple" | "olk" | "outlook"
         self.items = []
         self.last = 0.0
         self.next_due = 0.0
         self.apple = {"st": "idle"}   # idle | ok | not_running | denied | error | off
+        self.olk = {"st": "idle"}     # Outlook for Mac, the same states (Windows: the classic Outlook is "apple")
         self.ms = {"st": "off"}       # off | ok | need | waiting | signing | error
         self._tok = None              # {"access_token", "expires_at"} in memory only
         self._sign = None             # the sign-in in progress: {"stop": bool}
@@ -143,6 +144,21 @@ class Mail(Feature):
                 found += [m for m in self.items if m["src"] == "apple"]
         else:
             self.apple = {"st": "off"}
+        if self.olk_on():
+            self.busy = "olk"
+            self.app.push_soon()
+            try:
+                got = mailread.mac_outlook_recent(hours, 80)
+                found += got
+                self.olk = {"st": "ok", "n": len(got)}
+            except mailread.MailError as e:
+                self.olk = {"st": e.kind, "err": str(e)[:200] if e.kind == "error" else ""}
+                if e.kind != "not_running":
+                    log("mail: Outlook app %s %s" % (e.kind, str(e)[:200]))
+            if self.olk["st"] != "ok":
+                found += [m for m in self.items if m["src"] == "olk"]
+        else:
+            self.olk = {"st": "off"}
         if c.get("ms_account") and self.client_id() and self.ms.get("st") != "signing":
             self.busy = "outlook"
             self.app.push_soon()
@@ -163,8 +179,8 @@ class Mail(Feature):
         self.items = mailread.sort_mail(found, c.get("vip", ""), c.get("mute", ""))
         self.last = time.time()
         self._news(manual)
-        log("mail: %s look, %d messages (%d important), Apple %s, Outlook %s" % (
-            "manual" if manual else "automatic", len(self.items), self.counts(), self.apple["st"], self.ms["st"]))
+        log("mail: %s look, %d messages (%d important), Apple %s, Outlook app %s, Outlook %s" % (
+            "manual" if manual else "automatic", len(self.items), self.counts(), self.apple["st"], self.olk["st"], self.ms["st"]))
 
     def _news(self, manual):
         """an automatic look speaks up about new important unread mail; remember what was seen"""
@@ -283,6 +299,10 @@ class Mail(Feature):
         self.app.push_soon()
 
     # ---------- the page ----------
+    def olk_on(self):
+        """Outlook for Mac: on unless you turned it off (and only where it's installed)"""
+        return mailread.mac_outlook_installed() and bool(self.cfg.get("olk", True))
+
     def counts(self):
         return sum(1 for m in self.items if m["level"] == "important")
 
@@ -297,7 +317,7 @@ class Mail(Feature):
                 "next": self.next_due if self.cfg.get("used") else 0,
                 "items": [self._row(m) for m in self.items[:80]], "important": self.counts(),
                 "apple": self.apple, "ms": ms, "ms_ready": bool(self.client_id()),
-                "apple_on": bool(self.cfg.get("apple", True))}
+                "apple_on": bool(self.cfg.get("apple", True)), "olk": self.olk, "olk_on": self.olk_on()}
 
     # api.feature("mail", ...)
     def api_opened(self):
@@ -342,6 +362,8 @@ class Mail(Feature):
             return False
         if m["src"] == "apple":
             threading.Thread(target=mailread.apple_open, args=(m["mid"],), daemon=True).start()
+        elif m["src"] == "olk":
+            threading.Thread(target=mailread.mac_outlook_open, args=(m["mid"],), daemon=True).start()
         elif m.get("url"):
             import webbrowser
             webbrowser.open(m["url"])
@@ -355,6 +377,11 @@ class Mail(Feature):
             self.app.push_soon()
             return False
         threading.Timer(15 if IS_WIN else 6, lambda: self._go(manual=True)).start()     # Outlook takes its time
+        return True
+
+    def api_open_outlook_app(self):
+        mailread.open_mac_outlook()
+        threading.Timer(12, lambda: self._go(manual=True)).start()      # Outlook takes its time
         return True
 
     def api_open_sign_in_page(self):
@@ -385,14 +412,15 @@ class Mail(Feature):
 
     def get_settings(self):
         c = self.cfg
-        return {"apple": bool(c.get("apple", True)), "every": self.every(), "hours": self.hours(),
+        return {"apple": bool(c.get("apple", True)), "olk": bool(c.get("olk", True)),
+                "olk_avail": mailread.mac_outlook_installed(), "every": self.every(), "hours": self.hours(),
                 "notify": bool(c.get("notify", True)), "vip": c.get("vip", ""), "mute": c.get("mute", ""),
                 "ms_client_id": self.client_id(), "ms_tenant": self.tenant(), "ms_account": c.get("ms_account", ""),
                 "everys": EVERY, "hourss": HOURS}
 
     def save_settings(self, s):
         c = self.cfg
-        for k in ("apple", "notify"):
+        for k in ("apple", "olk", "notify"):
             if k in s:
                 c[k] = bool(s[k])
         if int(s.get("every") or 0) in EVERY:

@@ -652,7 +652,12 @@ const FEATURES = {
       if(ap.st === 'not_running') out.push(`<div class="ln dim">${esc(M.appleOff)} <button class="lnk" onclick="fcall('mail','open_mail_app')">${esc(M.openMail)}</button></div>`);
       else if(ap.st === 'denied') out.push(`<div class="ln warn">${esc(M.appleDenied)}` + (IS_WIN ? '' : ` <button class="lnk" onclick="api().open_url('x-apple.systempreferences:com.apple.preference.security?Privacy_Automation')">${esc(M.allow)} ›</button>`) + '</div>');
       else if(ap.st === 'error') out.push(`<div class="ln warn">${esc(M.appleErr(ap.err || ''))}</div>`);
-      if(s.busy && !items.length) out.push(`<div class="ln">${esc(s.busy === 'outlook' ? M.lookingMs : s.busy === 'apple' ? M.lookingApple : M.looking)}<span class="dots"></span></div>`);
+      const ol = s.olk || {};          // Outlook for Mac (the desktop app)
+      if(s.olk_on && ol.st === 'not_running') out.push(`<div class="ln dim">${esc(M.olkOff)} <button class="lnk" onclick="fcall('mail','open_outlook_app')">${esc(M.openOlk)}</button></div>`);
+      else if(s.olk_on && ol.st === 'denied') out.push(`<div class="ln warn">${esc(M.olkDenied)} <button class="lnk" onclick="api().open_url('x-apple.systempreferences:com.apple.preference.security?Privacy_Automation')">${esc(M.allow)} ›</button></div>`);
+      else if(s.olk_on && ol.st === 'error') out.push(`<div class="ln warn">${esc(M.olkErr(ol.err || ''))}</div>`);
+      const busyText = b => b === 'outlook' ? M.lookingMs : b === 'olk' ? M.lookingOlk : b === 'apple' ? M.lookingApple : M.looking;
+      if(s.busy && !items.length) out.push(`<div class="ln">${esc(busyText(s.busy))}<span class="dots"></span></div>`);
       const imp = items.filter(m => m.level === 'important'), rest = items.filter(m => m.level === 'normal'), skip = items.filter(m => m.level === 'skip');
       if(!s.busy && s.last && !items.length) out.push(`<div class="ln dim">${esc(M.none)}</div>`);
       else if(items.length && !imp.length) out.push(`<div class="ln dim">${esc(M.noneImportant)}</div>`);
@@ -664,7 +669,7 @@ const FEATURES = {
         html += `<div class="mgrp skip"><button onclick="mlOpen.skip=!mlOpen.skip; renderBalloon()">${mlOpen.skip ? '▾' : '▸'} ${esc(M.skipped(skip.length))}</button> <span class="dim">${kinds}</span>${mlOpen.skip ? skip.map(m => mlRow(m)).join('') : ''}</div>`;
       }
       const ms = s.ms || {};
-      const when = s.busy ? (s.busy === 'outlook' ? M.lookingMs : M.lookingApple) : s.last ? M.checked(hhmm(s.last)) : '';
+      const when = s.busy ? busyText(s.busy) : s.last ? M.checked(hhmm(s.last)) : '';
       // Outlook is optional: the link shows only once an app ID is filled in (Settings → Mail)
       const add = s.ms_ready && !ms.account && ms.st !== 'signing' ? `<button class="lnk" onclick="fcall('mail','sign_in')">${esc(M.addOutlook)}</button>` : '';
       return {

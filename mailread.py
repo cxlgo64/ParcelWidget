@@ -137,6 +137,89 @@ def apple_open(mid):
     subprocess.Popen(["open", "message://" + urllib.parse.quote("<%s>" % mid, safe="")])
 
 
+# ================= Outlook for Mac (the desktop app, like the classic Outlook on Windows) =================
+# Read through its scripting (JavaScript for Automation): no Microsoft sign-in, so it also works
+# where a company blocks sign-ins from other apps. Only the legacy Outlook answers; the New Outlook
+# shows no mail to other programs. The inbox of each account, newest first, until the cutoff.
+MAC_OUTLOOK = "/Applications/Microsoft Outlook.app"
+_OLK_JS = r"""
+function run(argv){
+  const hours = +argv[0], limit = +argv[1], cutoff = new Date(Date.now() - hours * 3600 * 1000);
+  const O = Application("Microsoft Outlook"), out = [];
+  const INBOX = /^(Inbox|收件箱|收件匣|Posteingang|Boîte de réception|Bandeja de entrada|Posta in arrivo|受信トレイ)$/i;
+  for (const f of O.mailFolders()) {
+    let name = "", acct = "";
+    try { name = f.name(); } catch (e) { continue; }
+    if (!INBOX.test(name)) continue;
+    try { const a = f.account(); acct = a.emailAddress ? a.emailAddress() : a.name(); } catch (e) { continue; }   // "On My Computer": no account
+    try {
+      const ms = f.messages.whose({timeReceived: {_greaterThan: cutoff}});
+      const n = Math.min(ms.length, limit);
+      if (!n) continue;
+      const ids = ms.id(), subj = ms.subject(), tr = ms.timeReceived(), rd = ms.isRead(), snd = ms.sender();
+      const rows = ids.map((id, i) => ({account: acct, mid: String(id), read: !!rd[i], subject: subj[i] || "",
+        sender: snd[i] ? ((snd[i].name || "") + (snd[i].address ? " <" + snd[i].address + ">" : "")) : "",
+        ts: tr[i] instanceof Date ? tr[i].getTime() / 1000 : 0}));
+      rows.sort((a, b) => b.ts - a.ts);
+      out.push(...rows.slice(0, n));
+    } catch (e) { out.push({account: acct, error: String(e)}); }
+  }
+  return JSON.stringify(out);
+}
+"""
+
+
+def mac_outlook_installed():
+    import os
+    return not IS_WIN and os.path.isdir(MAC_OUTLOOK)
+
+
+def mac_outlook_running():
+    try:
+        r = subprocess.run(["osascript", "-e", 'application "Microsoft Outlook" is running'], capture_output=True, timeout=10)
+        return r.stdout.decode().strip() == "true"
+    except Exception:
+        return False
+
+
+def mac_outlook_recent(hours=24, limit=80):
+    """newest inbox mail of the last `hours` from each account in Outlook for Mac (it must be open)"""
+    if not mac_outlook_running():
+        raise MailError("not_running")
+    try:
+        r = subprocess.run(["osascript", "-l", "JavaScript", "-", str(int(hours)), str(int(limit))],
+                           input=_OLK_JS.encode(), capture_output=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        raise MailError("error", "Outlook took too long to answer")
+    err = r.stderr.decode(errors="replace").strip()
+    if r.returncode != 0:
+        if "-1743" in err or "Not authorized" in err or "not allowed" in err.lower():
+            raise MailError("denied", err)
+        raise MailError("error", err.splitlines()[-1] if err else "osascript failed")
+    try:
+        rows = json.loads(r.stdout.decode(errors="replace") or "[]")
+    except ValueError:
+        raise MailError("error", "Outlook's answer couldn't be read")
+    out = _rows(rows)
+    for m in out:
+        m["id"], m["src"] = "olk:" + m["mid"], "olk"
+    return out
+
+
+def mac_outlook_open(mid):
+    """show one message in Outlook for Mac"""
+    try:
+        n = int(mid)
+    except (TypeError, ValueError):
+        return
+    subprocess.run(["osascript", "-e", 'tell application "Microsoft Outlook"\nopen message id %d\nactivate\nend tell' % n],
+                   capture_output=True, timeout=30)
+
+
+def open_mac_outlook():
+    subprocess.Popen(["open", "-g", "-a", "Microsoft Outlook"])
+
+
 # ================= classic Outlook (Windows) =================
 # Sorted newest first and read until the cutoff: Outlook's own date filter wants dates written the
 # way this PC's region writes them, which is easy to get wrong.
