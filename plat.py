@@ -21,6 +21,30 @@ IS_WIN = sys.platform == "win32"
 HIDE = {"creationflags": 0x08000000} if IS_WIN else {}      # CREATE_NO_WINDOW
 
 
+# ---------------- the screen ----------------
+def work_area():
+    """Windows: the main screen without the taskbar, as (left, top, right, bottom) in the pixels
+    pywebview counts in (physical pixels divided by the display scaling). None elsewhere."""
+    if not IS_WIN:
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+        u = ctypes.windll.user32
+        u.SetProcessDPIAware()          # pywebview does the same when it starts; sizes then agree
+        r = wintypes.RECT()
+        if not u.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0):   # SPI_GETWORKAREA
+            return None
+        try:
+            scale = u.GetDpiForSystem() / 96.0
+        except Exception:               # before Windows 10 1607
+            scale = 1.0
+        scale = scale or 1.0
+        return tuple(int(v / scale) for v in (r.left, r.top, r.right, r.bottom))
+    except Exception:
+        return None
+
+
 # ---------------- opening things ----------------
 def open_path(path):
     """open a file, a folder, or an address like ms-settings:printers with whatever handles it"""

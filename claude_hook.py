@@ -10,6 +10,10 @@ widget runs on, or as ParcelWidgetHook.exe next to the packaged app. Claude Code
     PreToolUse AskUserQuestion  Claude asks you something: pick the answer in her balloon
     PostToolUse               a tool ran: questions already answered in Claude go away
 
+The same hook serves other agents that speak Claude Code's hook language: WorkBuddy runs it as
+`claude_hook.py --agent=workbuddy` (from ~/.workbuddy/settings.json), and its events go to the
+widget's WorkBuddy feature instead (its own socket / port file).
+
 It hands the event to the widget over a local socket (only you can open it; on Windows a
 port on this PC only, with a password kept in your own data folder) and, for the last two,
 waits for your choice. If the widget isn't running, you answer in Claude, or the
@@ -25,8 +29,13 @@ if IS_WIN:
     BASE = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "ParcelWidget")
 else:
     BASE = os.path.expanduser("~/Library/Application Support/ParcelWidget")
-SOCK = os.environ.get("PARCELWIDGET_CLAUDE_SOCK") or os.path.join(BASE, "claude.sock")
-PORT_FILE = os.environ.get("PARCELWIDGET_CLAUDE_PORT") or os.path.join(BASE, "claude.port")    # Windows
+AGENTS = ("claude", "workbuddy")
+AGENT = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--agent=")), "claude")
+if AGENT not in AGENTS:
+    AGENT = "claude"
+_E = "PARCELWIDGET_%s_" % AGENT.upper()
+SOCK = os.environ.get(_E + "SOCK") or os.path.join(BASE, AGENT + ".sock")
+PORT_FILE = os.environ.get(_E + "PORT") or os.path.join(BASE, AGENT + ".port")    # Windows
 MAX_TEXT = 4000
 
 

@@ -184,6 +184,20 @@ class App:
             self.settings_window = None
         w.events.closed += closed
 
+    def _stop_siblings(self):
+        """Quitting/restarting this copy must not leave a second app.py running (a
+        stale double-click, the login shortcut, another profile). Only this project's
+        processes are stopped — never an unrelated Python program."""
+        try:
+            import instance
+            n, pids = instance.stop_others(HERE, keep_pid=os.getpid())
+            if n:
+                log("stopped %d other widget process(es): %s" % (n, pids))
+            return n
+        except Exception as ex:
+            log("stop_others failed: %r" % ex)
+            return 0
+
     def quit(self):
         self.closing = True
         if IS_WIN and self.menubar:
@@ -195,9 +209,54 @@ class App:
                     w and w.destroy()
                 except Exception:
                     pass
+            self._stop_siblings()   # take every copy with us, not just the clicked one
             time.sleep(2)
             os._exit(0)  # fallback: force exit (incl. a tracking browser) after 2 s
         later(_close, 0.2)
+        return True
+
+    def restart(self):
+        """Stop all widget processes (including this one) and start one fresh copy."""
+        import subprocess
+        self.closing = True
+        if IS_WIN and self.menubar:
+            self.menubar._ui(self.menubar.remove)
+
+        def _relaunch():
+            import instance
+            for w in (self.settings_window, self.window):
+                try:
+                    w and w.destroy()
+                except Exception:
+                    pass
+            self._stop_siblings()
+            # release our lock now, before the new process tries to take it
+            try:
+                instance.release()
+            except Exception as ex:
+                log("release lock failed: %r" % ex)
+            # detached so the child survives our os._exit and opens no console window
+            exe = sys.executable
+            if IS_WIN and not getattr(sys, "frozen", False):
+                venv_pw = os.path.join(HERE, ".venv", "Scripts", "pythonw.exe")
+                if os.path.exists(venv_pw):
+                    exe = venv_pw
+            args = [exe]
+            if not getattr(sys, "frozen", False):
+                args.append(os.path.join(HERE, "app.py"))
+            env = dict(os.environ)
+            env["PARCELWIDGET_PROFILE"] = str(instance.current())
+            flags = 0x00000008 | 0x00000200 if IS_WIN else 0   # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+            try:
+                subprocess.Popen(args, cwd=HERE, env=env, creationflags=flags,
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, close_fds=True)
+                log("restart: launched %s" % exe)
+            except Exception as ex:
+                log("restart: launch failed %r" % ex)
+            time.sleep(1)
+            os._exit(0)
+        later(_relaunch, 0.2)
         return True
 
     # ---------- tell the pages something changed ----------
@@ -237,13 +296,13 @@ class Api:
     """Methods callable from the pages as window.pywebview.api.xxx (both windows share it)."""
 
     def __init__(self, app):
-        self.a = app
+        self._a = app
         self._fit_lock = threading.Lock()
         self._fit_want = None
 
     # ---------- state ----------
     def get_state(self):
-        a, c = self.a, self.a.cfg
+        a, c = self._a, self._a.cfg
         p = preset(c)
         return {
             "lang": c.get("lang", "en"),
@@ -264,83 +323,83 @@ class Api:
 
     def feature(self, fid, method, *args):
         """Call a feature's api_<method> (see features/)."""
-        f = self.a.feature(fid)
+        f = self._a.feature(fid)
         fn = getattr(f, "api_" + method, None) if f else None
         if not fn:
             return {"error": "unknown"}
         return fn(*args)
 
     def ack_report(self, rid):
-        return self.a.reports.ack(rid)
+        return self._a.reports.ack(rid)
 
     def get_features(self):
-        return self.a.features_list()
+        return self._a.features_list()
 
     def save_features(self, items):
-        return self.a.set_features(items)
+        return self._a.set_features(items)
 
     # ---------- settings ----------
     def get_settings(self):
-        c = self.a.cfg
+        c = self._a.cfg
         out = {"general": {"lang": c.get("lang", "en"), "on_top": bool(c.get("always_on_top")),
                            "size_preset": str(c.get("size_preset", "14")),
                            "skin": c.get("skin", ""), "skin_side": c.get("skin_side", "right")}}
-        for f in self.a.features:
+        for f in self._a.features:
             out[f.id] = f.get_settings()
         return out
 
     def save_settings(self, section, values):
-        f = self.a.feature(section)
+        f = self._a.feature(section)
         if not f:
             return False
         f.save_settings(values or {})
-        save_config(self.a.cfg)
-        self.a.push()
+        save_config(self._a.cfg)
+        self._a.push()
         return True
 
     def set_lang(self, lang):
-        self.a.cfg["lang"] = "zh" if lang == "zh" else "en"
-        _vault().LANG = self.a.cfg["lang"]
-        save_config(self.a.cfg)
-        self.a.push()
-        return self.a.cfg["lang"]
+        self._a.cfg["lang"] = "zh" if lang == "zh" else "en"
+        _vault().LANG = self._a.cfg["lang"]
+        save_config(self._a.cfg)
+        self._a.push()
+        return self._a.cfg["lang"]
 
     def set_touch_id(self, value):
         """ask for Touch ID before using saved passwords (vault.py)"""
-        c = self.a.cfg
+        c = self._a.cfg
         c["touch_id"] = bool(value)
         save_config(c)
         vault = _vault()
         vault.ASK = c["touch_id"]
         if c["touch_id"]:
             vault.lock()       # from now on: ask before the next use
-        self.a.push()
+        self._a.push()
         return c["touch_id"]
 
     def set_on_top(self, value):
-        c = self.a.cfg
+        c = self._a.cfg
         c["always_on_top"] = bool(value)
         save_config(c)
-        later(lambda: setattr(self.a.window, "on_top", c["always_on_top"]))
-        self.a.push()
+        later(lambda: setattr(self._a.window, "on_top", c["always_on_top"]))
+        self._a.push()
         return c["always_on_top"]
 
     def set_size(self, key):
         if key not in SIZE_PRESETS:
             return None
-        self.a.cfg["size_preset"] = key
-        save_config(self.a.cfg)
-        self.a.push()
+        self._a.cfg["size_preset"] = key
+        save_config(self._a.cfg)
+        self._a.push()
         p = SIZE_PRESETS[key]
         return {"zoom": p["zoom"], "max_h": p["h"], "base_w": p["w"]}
 
     def open_settings(self, tab="general"):
-        self.a.open_settings(tab)
+        self._a.open_settings(tab)
         return True
 
     # ---------- skins ----------
     def _skin(self):
-        sid = self.a.cfg.get("skin") or ""
+        sid = self._a.cfg.get("skin") or ""
         for s in list_skins():
             if s["id"] == sid:
                 return s
@@ -351,13 +410,13 @@ class Api:
                  "thumb": s.get("thumb", ""), "custom": bool(s.get("custom"))} for s in list_skins()]
 
     def set_skin(self, skin_id=None, side=None):
-        c = self.a.cfg
+        c = self._a.cfg
         if skin_id and any(s["id"] == skin_id for s in list_skins()):
             c["skin"] = skin_id
         if side in ("left", "right"):
             c["skin_side"] = side
         save_config(c)
-        self.a.push()
+        self._a.push()
         return {"skin": self._skin(), "skin_side": c["skin_side"]}
 
     def delete_skin(self, skin_id):
@@ -366,30 +425,30 @@ class Api:
         for s in list_skins():
             if s["id"] == skin_id and s.get("custom"):
                 shutil.rmtree(os.path.join(SKINS_DIR, skin_id), ignore_errors=True)
-                if self.a.cfg.get("skin") == skin_id:
-                    self.a.cfg["skin"] = next((x["id"] for x in list_skins()), "")
-                    save_config(self.a.cfg)
-                self.a.push()
+                if self._a.cfg.get("skin") == skin_id:
+                    self._a.cfg["skin"] = next((x["id"] for x in list_skins()), "")
+                    save_config(self._a.cfg)
+                self._a.push()
                 return True
         return False
 
     # ---------- custom skins (generated with an image API, see skinmaker/) ----------
     def get_skin_gen(self):
         from skinmaker import DEFAULT_PROVIDER, PROVIDERS, has_key
-        g = self.a.cfg.get("skin_gen") or {}
+        g = self._a.cfg.get("skin_gen") or {}
         return {
             "providers": [dict(p.info(), has_key=has_key(p.id)) for p in PROVIDERS.values()],
             "provider": g.get("provider") or DEFAULT_PROVIDER,
             "models": g.get("models") or {},
             "base_urls": g.get("base_urls") or {},
-            "job": self.a.skin_job,
+            "job": self._a.skin_job,
         }
 
     def pick_ref_image(self):
         """Native file picker; returns the path and a small preview."""
         import base64
         import io
-        win = self.a.settings_window or self.a.window
+        win = self._a.settings_window or self._a.window
         res = win.create_file_dialog(webview.FileDialog.OPEN, file_types=("Images (*.png;*.jpg;*.jpeg;*.webp)",))
         if not res:
             return None
@@ -406,7 +465,7 @@ class Api:
             return {"error": str(ex)[:120]}
 
     def start_skin_gen(self, opts):
-        a = self.a
+        a = self._a
         if a.skin_job and not a.skin_job.get("done"):
             return {"ok": False, "msg": "busy"}
         from skinmaker import get_key, get_provider, set_key
@@ -445,7 +504,7 @@ class Api:
 
     def _run_skin_gen(self, name, desc, pid, key, ref, model, base_url):
         from skinmaker import Cancelled, make_skin
-        a, job = self.a, self.a.skin_job
+        a, job = self._a, self._a.skin_job
         # she reports it like any other job (put into words by the page: FEATURES.skin)
         r = a.reports.add("skin", "make", {"job": dict(job)})
 
@@ -470,19 +529,19 @@ class Api:
         a.push()
 
     def cancel_skin_gen(self):
-        self.a._skin_stop = True
+        self._a._skin_stop = True
         return True
 
     def clear_skin_job(self):
-        if self.a.skin_job and self.a.skin_job.get("done"):
-            self.a.skin_job = None
+        if self._a.skin_job and self._a.skin_job.get("done"):
+            self._a.skin_job = None
         return True
 
     # ---------- the character's window ----------
     def fit(self, css_width, css_height):
         """Resize the window to the page's layout (CSS px x zoom), keeping her feet where
         they are: the bottom corner on her side stays put while the balloon opens."""
-        a = self.a
+        a = self._a
         z = preset(a.cfg)["zoom"]
         w = int(max(60, round(float(css_width) * z)))
         h = int(max(60, round(float(css_height) * z)))
@@ -517,12 +576,12 @@ class Api:
     # so with an external display the window jumped to a screen edge on the first drag.
     # Here both use global Cocoa coordinates, flipped against the primary display.
     def _ns(self):
-        return getattr(self.a.window, "native", None) if IS_MAC else None
+        return getattr(self._a.window, "native", None) if IS_MAC else None
 
     def get_pos(self):
         ns = self._ns()
         if ns is None:
-            return [self.a.window.x, self.a.window.y]
+            return [self._a.window.x, self._a.window.y]
         import AppKit
         top = AppKit.NSScreen.screens()[0].frame().size.height
         f = ns.frame()
@@ -533,7 +592,7 @@ class Api:
         try:
             ns = self._ns()
             if ns is None:
-                self.a.window.move(int(x), int(y))
+                self._a.window.move(int(x), int(y))
                 return True
             import AppKit
             from PyObjCTools import AppHelper
@@ -549,8 +608,8 @@ class Api:
 
     def context_menu(self):
         """Right-click on her: the same menu as the menu bar icon."""
-        if self.a.menubar:
-            self.a.menubar.popup()
+        if self._a.menubar:
+            self._a.menubar.popup()
             return True
         return False
 
@@ -565,8 +624,8 @@ class Api:
                 lines = f.read().decode("utf-8", "replace").splitlines()[-int(max_lines):]
         except FileNotFoundError:
             size, lines = 0, []
-        p = self.a.feature("parcels")
-        status = {"asleep": self.a.asleep}
+        p = self._a.feature("parcels")
+        status = {"asleep": self._a.asleep}
         if p:
             status.update(busy=p.busy, next_check=p.next_due.timestamp() if p.next_due else None,
                           retry=p.retry_due, net_tries=p.net_tries, last_run=p.last_run)
@@ -590,13 +649,16 @@ class Api:
             plat.open_url(url)
 
     def hide(self):
-        if self.a.menubar:
-            self.a.hide_window()
+        if self._a.menubar:
+            self._a.hide_window()
         else:
-            later(self.a.window.minimize)
+            later(self._a.window.minimize)
 
     def quit(self):
-        return self.a.quit()
+        return self._a.quit()
+
+    def restart(self):
+        return self._a.restart()
 
 
 def _vault():
@@ -633,18 +695,33 @@ def main():
     api = Api(app)
     app.api = api
     p = preset(app.cfg)
+    w0, h0 = int(p["w"] * 0.6), int(p["w"] * 0.7)
+    # Windows puts a new window wherever it likes, often near the top left; her balloon then
+    # opens up and away from her side, off the screen. So she starts in the bottom corner on
+    # her side of the main screen, above the taskbar, where the balloon has room.
+    place = {}
+    if IS_WIN:
+        import plat
+        area = plat.work_area()
+        if area:
+            left, top, right, bottom = area
+            gap = 24
+            on_right = app.cfg.get("skin_side", "right") == "right"
+            place = {"x": max(left, right - w0 - gap) if on_right else left + gap,
+                     "y": max(top, bottom - h0 - gap)}
     win = webview.create_window(
         "Parcel Widget" + (" %d" % PROFILE if PROFILE > 1 else ""),
         os.path.join(UI_DIR, "index.html"),
         js_api=api,
-        width=int(p["w"] * 0.6),
-        height=int(p["w"] * 0.7),   # the page resizes the window to fit her and her balloon
+        width=w0,
+        height=h0,                  # the page resizes the window to fit her and her balloon
         min_size=(60, 60),
         frameless=True,
         resizable=False,            # the page sizes the window itself; no handle to drag her away
         easy_drag=False,
         on_top=bool(app.cfg.get("always_on_top")),
         transparent=True,
+        **place,
     )
     app.window = win
     threading.Thread(target=app.loop, daemon=True).start()

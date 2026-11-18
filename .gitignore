@@ -22,3 +22,31 @@ dist/
 packaging/icon.png
 packaging/icon.icns
 packaging/icon.ico
+
+# credentials / secrets — never commit these
+# (CodeBuddy CLI writes ~/.codebuddy/.credentials.json; the app keeps its
+#  sign-in in local_storage. Both are outside this repo, but keep a guard here
+#  in case a copy or an exported token ever lands next to the source.)
+.env
+.env.*
+!.env.example
+.credentials.json
+*.credentials.json
+credentials.json
+*credential*.json
+*token*.json
+*secret*.json
+auth.json
+*auth*.json
+*.pem
+*.p12
+*.pfx
+*.key
+*.keystore
+.npmrc
+local_storage/
+*.info
+*.bak
+
+# machine-specific login helpers (contain absolute C:\Users\... paths)
+CodeBuddy-*.cmd

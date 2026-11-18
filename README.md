@@ -21,7 +21,9 @@ and a CPU / memory / network monitor drawn as candlestick charts.
 3. **Idle**: hover over her for a button per job (📦 packages, 📊 system monitor, 👉 poke).
    Click her to poke her; drag her to move her.
 4. **Right-click her** (or click the menu bar icon) for the menu: one submenu per job, Show Widget,
-   Settings…, Quit. Everything detailed is in the **Settings** window.
+   Settings…, Restart, Quit. **Restart** stops every copy of the widget (and the CLI processes it started)
+   and opens one fresh instance — handy after changing code or sign-in state; **Quit** closes them all too.
+   Everything detailed is in the **Settings** window.
 
 ## Features
 - 📦 **Parcels**: scans Gmail (read-only, IMAP + app password) for **UPS, FedEx, USPS and Amazon** tracking numbers,
@@ -50,6 +52,20 @@ and a CPU / memory / network monitor drawn as candlestick charts.
   of `~/.codex/config.toml`; the command line inside the ChatGPT app is found by itself). Codex can't ask for
   permission in such a run, so it works in its sandbox: it may change files in the folder you picked, nowhere
   else, and has no network. `"codex": {"sandbox": "read-only"}` in `config.json` makes it look-only.
+- 🧑‍💼 **WorkBuddy** (Settings → 🧑‍💼 WorkBuddy, off until you turn it on): the same watching as for Claude Code, for
+  Tencent's WorkBuddy desktop app. Its agent (CodeBuddy Code) runs Claude Code's kind of hooks, so turning it on adds
+  `claude_hook.py --agent=workbuddy` to `~/.workbuddy/settings.json` (a backup is kept): she tells you when a
+  WorkBuddy task finished, failed or needs you, and permission requests and questions can be answered in her
+  balloon. Her balloon also has a **chat**: pick a project folder, type a task, and she runs the full CodeBuddy CLI
+  in that folder, shows what it is doing and prints the answer; follow-ups resume the same conversation,
+  `New chat` starts over and `Stop` ends a run. Sign in **once** before the first chat with
+  **Settings → WorkBuddy → "Sign in to CodeBuddy…"** (or the same item in her right-click menu): it opens a terminal
+  running the full CLI, you pick `Log in via Chinese Site` and finish in the browser, and the credentials land in
+  `~/.codebuddy/.credentials.json`, outside this repo. No token is copied from the app or stored here (see
+  `.gitignore`). The CLI bundled inside the WorkBuddy app is a **headless `lite-wb` build with no login UI** that
+  always uses the desktop-only endpoint, so the chat deliberately avoids it: it looks for the full npm CLI in every
+  install location and only falls back to the bundled copy as a last resort. See
+  [WorkBuddy sign-in](#workbuddy-sign-in) for why that matters and how the chat keeps its own clean environment.
 - 🐙 **GitHub**: your repositories (latest push first: private or public, language, stars, open issues and
   pull requests, whether checks passed), your unread notifications, and the copies on this Mac (uncommitted
   files, commits not pushed). Asked through the GitHub command line (`gh`), signed in as you: the widget never
@@ -195,6 +211,35 @@ Model names and endpoints can be changed under "Advanced". From the command line
 `.venv/bin/python -m skinmaker --help` (make, redo some rows, reassemble, preview).
 With Claude Code, the `make-skin` skill in `.claude/skills/` knows how to make, check, fix and tune skins.
 
+## WorkBuddy sign-in
+
+The WorkBuddy chat runs CodeBuddy Code as a non-interactive child process (`-p --output-format stream-json`).
+Getting it signed in has two non-obvious traps, both handled in `features/workbuddy.py`:
+
+- **Two different CLIs.** The full npm CLI (`@tencent-ai/codebuddy-code`, installed under
+  `~/.workbuddy/binaries/node/versions/*/`) has an interactive `/login` panel and uses the normal
+  `copilot.tencent.com` credential store (`~/.codebuddy/.credentials.json`). The copy bundled inside the
+  WorkBuddy app (`app.asar.unpacked/cli`) is a headless **`lite-wb` build**: no login UI, and it always talks to
+  the desktop-only `www.workbuddy.cn` store (`auth/workbuddy-desktop.info`). Signing in with the full CLI is
+  therefore invisible to the bundled one. `_cli_js()` scans all known install locations for the full CLI and
+  only falls back to the bundled build when nothing else exists — it deliberately does **not** resolve the CLI
+  relative to `PATH`, which in the GUI can point at a different node and silently pick the wrong one.
+- **Host environment leaks.** Parcel Widget itself is launched from inside the WorkBuddy desktop app, so its
+  `os.environ` carries injected variables (`CODEBUDDY_HOST`, `WORKBUDDY_CONFIG_DIR`,
+  `ACC_PRODUCT_CONFIG_PATH`, …). Passing those down makes the child CLI believe it *is* the desktop app: it
+  switches to `www.workbuddy.cn`, fails to read the desktop credential store (`missing-key`) and reports
+  `Authentication required` forever — plus MCP `Connection closed` errors from the host's MCP config. The same
+  CLI, started with only a double-clicked `.cmd`'s minimal environment, uses `copilot.tencent.com` and replies
+  fine. `_env()` therefore builds the child environment from an allowlist of OS variables instead of inheriting
+  everything (a blacklist was tried first and still failed in the GUI).
+
+Signing in is interactive (a TUI → browser flow), so it can't happen inside the balloon. The
+**"Sign in to CodeBuddy…"** button opens a real terminal running the full CLI in that same clean environment,
+which is why the credentials it writes are picked up by the next chat — no manual `.cmd` hunting, no token
+copied from the app. If you ever used the bundled/old flow and the balloon still says `Authentication required`,
+use the widget's **Restart** (or **Quit** then `start.bat`) so the chat process reloads with the corrected
+environment.
+
 ## Privacy
 - Your Gmail app password and image AI keys are saved **encrypted** in `secrets.vault` (AES-256 + HMAC,
   with a key tied to this Mac's hardware, so the file is useless anywhere else). She asks for **Touch ID**
@@ -250,15 +295,15 @@ Many Amazon emails only contain a "Track package" button with no number. Add tho
 | `power.py` | Sleep / wake of the computer |
 | `mailread.py` | Reading the inbox: Apple Mail (JavaScript for Automation) or the classic Outlook on Windows (PowerShell), Outlook through Microsoft (Graph, device code sign-in), the first sort |
 | `claude_hook.py` | Claude Code hook: hands Claude's events to her over a local socket, returns your answer |
-| `features/` | The character's jobs: `parcels.py`, `mail.py`, `claude.py`, `codex.py` (both chats: `chat.py`), `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
+| `features/` | The character's jobs: `parcels.py`, `mail.py`, `claude.py`, `codex.py` (both chats: `chat.py`), `workbuddy.py`, `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
 | `usbscan.py` | USB devices, their drivers and the printers (macOS: ioreg, kmutil, CUPS) |
 | `usbscan_win.py` | USB devices and their drivers (Windows: the registry, the configuration manager) |
-| `instance.py` | Which copy this is: one already open → go to it or open another; each copy's data folder |
+| `instance.py` | Which copy this is: one already open → go to it or open another; each copy's data folder; finds and stops this project's processes (and their CLI children) for Quit / Restart |
 | `airprint.py` | The printer list grouped by printer, one-click AirPrint, duplicates (macOS: CUPS lpadmin, ipptool) |
 | `winprint.py` | The same for Windows: driverless setup (IPP class driver), finding printers nearby (mDNS), duplicates |
 | `driverinfo.py` | Online lookups for the USB check: USB IDs, Software Update / Windows Update, web search, Apple's printer drivers |
 | `reports.py` | Reports shown in her balloon until confirmed |
-| `menus.py` | The menu as data (menu bar icon and right-click) |
+| `menus.py` | The menu as data (menu bar icon and right-click), including Restart |
 | `menubar.py` | macOS menu bar icon, right-click menu |
 | `wintray.py` | Windows tray icon, right-click menu |
 | `mail_scanner.py` | Gmail IMAP scan |

@@ -81,5 +81,6 @@ def make_features(app):
     from .poke import Poke
     from .sysmon import SysMon
     from .usb import USB
+    from .workbuddy import WorkBuddy
     # order = order of her hover buttons and of the menus
-    return [Parcels(app), Mail(app), SysMon(app), USB(app), Claude(app), Codex(app), GitHub(app), Poke(app)]
+    return [Parcels(app), Mail(app), SysMon(app), USB(app), Claude(app), Codex(app), WorkBuddy(app), GitHub(app), Poke(app)]

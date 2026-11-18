@@ -35,6 +35,7 @@ import instance
 
 SOCK = os.environ.get("PARCELWIDGET_CLAUDE_SOCK") or os.path.join(instance.BASE, "claude.sock")
 PORT_FILE = os.environ.get("PARCELWIDGET_CLAUDE_PORT") or os.path.join(instance.BASE, "claude.port")   # Windows
+AGENT = "claude"        # the hook's --agent (claude_hook.py): another agent's feature says its own
 HOOK_DST = os.path.join(instance.BASE, "claude_hook.py")
 HOOK_EXE = "ParcelWidgetHook.exe"       # Windows, packaged app: the hook as a program of its own
 SETTINGS = os.path.join(os.path.expanduser("~"), ".claude", "settings.json")
@@ -59,16 +60,17 @@ def _hook_src():
     return os.path.join(HERE, "claude_hook.py")
 
 
-def hook_command():
+def hook_command(agent=AGENT):
+    arg = "" if agent == AGENT else " --agent=" + agent
     if not IS_WIN:
-        return '/usr/bin/python3 "%s"' % HOOK_DST
+        return '/usr/bin/python3 "%s"%s' % (HOOK_DST, arg)
     # forward slashes: Claude Code runs hooks through Git Bash or PowerShell, both take them
     if FROZEN:      # no Python on the PC for sure: the hook program next to the widget's
-        return '"%s"' % os.path.join(os.path.dirname(sys.executable), HOOK_EXE).replace("\\", "/")
+        return '"%s"%s' % (os.path.join(os.path.dirname(sys.executable), HOOK_EXE).replace("\\", "/"), arg)
     py = sys.executable
     if os.path.basename(py).lower() == "pythonw.exe" and os.path.exists(py[:-5] + ".exe"):
         py = py[:-5] + ".exe"           # python.exe: the one that talks through pipes for sure
-    return '"%s" "%s"' % (py.replace("\\", "/"), HOOK_DST.replace("\\", "/"))
+    return '"%s" "%s"%s' % (py.replace("\\", "/"), HOOK_DST.replace("\\", "/"), arg)
 
 
 def _ours(h):
@@ -76,8 +78,13 @@ def _ours(h):
     return ("claude_hook.py" in c and "ParcelWidget" in c) or HOOK_EXE in c
 
 
-def _hooks_wanted():
-    cmd = hook_command()
+def _hooks_wanted(agent=AGENT):
+    cmd = hook_command(agent)
+    if agent != AGENT:
+        # WorkBuddy runs hooks through bash and takes exit code 2 as "stop what you were doing":
+        # that is what Python answers when the hook file is gone (the widget was moved or removed).
+        # A hook that can't run must never get in the agent's way.
+        cmd += " || true"
     bg = {"type": "command", "command": cmd, "async": True}
     wait = {"type": "command", "command": cmd, "timeout": max(WAITS) + 30}
     return {
@@ -90,24 +97,24 @@ def _hooks_wanted():
     }
 
 
-def _read_settings():
+def _read_settings(path=SETTINGS):
     try:
-        with open(SETTINGS, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             d = json.load(f)
         return d if isinstance(d, dict) else {}
     except FileNotFoundError:
         return {}
 
 
-def _write_settings(d):
-    os.makedirs(os.path.dirname(SETTINGS), exist_ok=True)
-    if os.path.exists(SETTINGS) and not os.path.exists(SETTINGS + ".parcelwidget-backup"):
-        shutil.copy2(SETTINGS, SETTINGS + ".parcelwidget-backup")     # the first time only
-    tmp = SETTINGS + ".parcelwidget-tmp"
+def _write_settings(d, path=SETTINGS):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.exists(path) and not os.path.exists(path + ".parcelwidget-backup"):
+        shutil.copy2(path, path + ".parcelwidget-backup")     # the first time only
+    tmp = path + ".parcelwidget-tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(d, f, indent=2, ensure_ascii=False)
         f.write("\n")
-    os.replace(tmp, SETTINGS)
+    os.replace(tmp, path)
 
 
 def _strip(hooks):
@@ -126,28 +133,29 @@ def _strip(hooks):
     return out
 
 
-def installed():
-    hooks = _read_settings().get("hooks") or {}
+def installed(path=SETTINGS):
+    hooks = _read_settings(path).get("hooks") or {}
     return any(_ours(h) for groups in hooks.values() if isinstance(groups, list)
-               for g in groups for h in (g.get("hooks") or []))
+               for g in groups if isinstance(g, dict) for h in (g.get("hooks") or []))
 
 
-def install():
-    """copy the hook next to the widget's data and add it to Claude Code's user settings"""
+def install(path=SETTINGS, agent=AGENT):
+    """copy the hook next to the widget's data and add it to the agent's user settings
+    (Claude Code's ~/.claude/settings.json unless told otherwise)"""
     os.makedirs(instance.BASE, exist_ok=True)
     shutil.copyfile(_hook_src(), HOOK_DST)
-    d = _read_settings()
+    d = _read_settings(path)
     before = json.dumps(d, sort_keys=True)
     hooks = _strip(d.get("hooks"))
-    for ev, groups in _hooks_wanted().items():
+    for ev, groups in _hooks_wanted(agent).items():
         hooks.setdefault(ev, []).extend(groups)
     d["hooks"] = hooks
     if json.dumps(d, sort_keys=True) != before:      # only touch the file when something changed
-        _write_settings(d)
+        _write_settings(d, path)
 
 
-def uninstall():
-    d = _read_settings()
+def uninstall(path=SETTINGS):
+    d = _read_settings(path)
     if "hooks" not in d:
         return
     hooks = _strip(d.get("hooks"))
@@ -155,7 +163,7 @@ def uninstall():
         d["hooks"] = hooks
     else:
         d.pop("hooks")
-    _write_settings(d)
+    _write_settings(d, path)
 
 
 def _reset_at(text):
@@ -210,6 +218,12 @@ class Claude(Chat):
     name = "Miss Claude"
     name_zh = "Claude小姐"
     hover = True
+    # what another agent with the same hooks changes (features/workbuddy.py)
+    agent = AGENT                 # the hook's --agent
+    agent_name = "Claude Code"    # in the log
+    project_default = "Claude"    # shown when an event doesn't say which folder
+    settings_path = SETTINGS      # where its hooks go
+    sock, port_file = SOCK, PORT_FILE
 
     def __init__(self, app):
         super().__init__(app)
@@ -234,11 +248,11 @@ class Claude(Chat):
     # ---------- start / stop ----------
     def start(self):
         if self.cfg.get("enabled"):
-            if installed():
+            if installed(self.settings_path):
                 try:
-                    install()          # keep the hook and its entries up to date (after an update)
+                    install(self.settings_path, self.agent)    # keep the hook and its entries up to date (after an update)
                 except Exception as e:
-                    log("claude: couldn't refresh the hooks: %r" % e)
+                    log("%s: couldn't refresh the hooks: %r" % (self.id, e))
             self._listen()
 
     def _listen(self):
@@ -246,40 +260,40 @@ class Claude(Chat):
             return
         if IS_WIN:
             return self._listen_tcp()
-        if os.path.exists(SOCK):
+        if os.path.exists(self.sock):
             try:
                 c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 c.settimeout(1)
-                c.connect(SOCK)
+                c.connect(self.sock)
                 c.close()
-                log("claude: another copy is already listening")
+                log("%s: another copy is already listening" % self.id)
                 return
             except OSError:
                 try:
-                    os.unlink(SOCK)
+                    os.unlink(self.sock)
                 except OSError:
                     pass
         srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         old = os.umask(0o077)               # only you can connect
         try:
-            srv.bind(SOCK)
+            srv.bind(self.sock)
         finally:
             os.umask(old)
         srv.listen(16)
         self._srv = srv
         self.listening = True
         threading.Thread(target=self._accept, args=(srv,), daemon=True).start()
-        log("claude: listening for Claude Code")
+        log("%s: listening for %s" % (self.id, self.agent_name))
 
     def _listen_tcp(self):
         """Windows: a port on this PC only; claude.port tells the hook which, and the password"""
         import secrets
         try:
-            with open(PORT_FILE, encoding="utf-8") as f:
+            with open(self.port_file, encoding="utf-8") as f:
                 port = int(json.load(f)["port"])
             c = socket.create_connection(("127.0.0.1", port), timeout=1)
             c.close()
-            log("claude: another copy is already listening")
+            log("%s: another copy is already listening" % self.id)
             return
         except (OSError, ValueError, KeyError, TypeError):
             pass
@@ -287,14 +301,14 @@ class Claude(Chat):
         srv.bind(("127.0.0.1", 0))
         srv.listen(16)
         self._token = secrets.token_hex(16)
-        tmp = PORT_FILE + ".tmp"
+        tmp = self.port_file + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump({"port": srv.getsockname()[1], "token": self._token}, f)
-        os.replace(tmp, PORT_FILE)
+        os.replace(tmp, self.port_file)
         self._srv = srv
         self.listening = True
         threading.Thread(target=self._accept, args=(srv,), daemon=True).start()
-        log("claude: listening for Claude Code")
+        log("%s: listening for %s" % (self.id, self.agent_name))
 
     def stop(self):
         self._stop()             # turned off: stop listening (the hooks then do nothing)
@@ -308,7 +322,7 @@ class Claude(Chat):
             except OSError:
                 pass
             try:
-                os.unlink(PORT_FILE if IS_WIN else SOCK)
+                os.unlink(self.port_file if IS_WIN else self.sock)
             except OSError:
                 pass
 
@@ -338,7 +352,7 @@ class Claude(Chat):
                     return
             keep = self.on_event(ev, conn)
         except Exception as e:
-            log("claude: bad event %r" % e)
+            log("%s: bad event %r" % (self.id, e))
         finally:
             if not keep:
                 try:
@@ -350,7 +364,7 @@ class Claude(Chat):
         """True if the connection was kept (waiting for your answer)"""
         name = ev.get("hook_event_name") or ""
         sid = ev.get("session_id") or ""
-        project = plat.base_name(ev.get("cwd") or "") or "Claude"
+        project = plat.base_name(ev.get("cwd") or "") or self.project_default
         rep = self.app.reports
         cwd = ev.get("cwd") or ""
         if cwd and cwd not in self._seen_cwds and not ev.get("run"):
@@ -368,7 +382,7 @@ class Claude(Chat):
                                                                               (ti.get("actions") or []) if isinstance(a, dict)][:3]}
             self._answered_elsewhere(sid, ev.get("tool_name"), ev.get("call"))
             return False
-        log("claude: %s%s" % (name, (" " + ev.get("notification_type")) if ev.get("notification_type") else ""))
+        log("%s: %s%s" % (self.id, name, (" " + ev.get("notification_type")) if ev.get("notification_type") else ""))
         if name == "Stop":
             self._answered_elsewhere(sid)
             w = self._wrap.pop(sid, None)
@@ -475,7 +489,7 @@ class Claude(Chat):
                 # not picked here: keep the summary, without the buttons
                 d = {k: v for k, v in r["data"].items() if k not in ("actions", "app", "until")}
                 self.app.reports.add(self.id, "done", d, live=False)
-            log("claude: %s %s" % (r["kind"], why))
+            log("%s: %s %s" % (self.id, r["kind"], why))
 
     def _answered_elsewhere(self, sid, tool=None, call=None):
         """the tool ran / the turn ended: questions about it were answered in Claude"""
@@ -625,11 +639,11 @@ class Claude(Chat):
             self.app.page_call("openFeature('claude')")
 
     def get_settings(self):
-        return {"enabled": bool(self.cfg.get("enabled")), "installed": installed(), "listening": self.listening,
+        return {"enabled": bool(self.cfg.get("enabled")), "installed": installed(self.settings_path), "listening": self.listening,
                 "done": bool(self._c("done", True)), "permissions": bool(self._c("permissions", True)),
                 "questions": bool(self._c("questions", True)), "wait": self.wait(), "waits": WAITS,
                 "opts": self.run_opts(), "models": MODELS, "efforts": EFFORTS, "contexts": CONTEXTS, "no_1m": list(NO_1M),
-                "settings_path": plat.home_short(SETTINGS)}
+                "settings_path": plat.home_short(self.settings_path)}
 
     def save_settings(self, s):
         c = self.cfg
@@ -641,13 +655,13 @@ class Claude(Chat):
             c["wait"] = int(s["wait"])
         if "enabled" in s and bool(s["enabled"]) != bool(c.get("enabled")):
             if s["enabled"]:
-                install()
+                install(self.settings_path, self.agent)
                 c["enabled"] = True
                 self._listen()
-                log("claude: hooks added to %s" % SETTINGS)
+                log("%s: hooks added to %s" % (self.id, self.settings_path))
             else:
-                uninstall()
+                uninstall(self.settings_path)
                 c["enabled"] = False
                 self._stop()
-                log("claude: hooks removed from %s" % SETTINGS)
+                log("%s: hooks removed from %s" % (self.id, self.settings_path))
             save_config(self.app.cfg)

@@ -20,7 +20,7 @@ a = Analysis(
     datas=[(os.path.join(ROOT, "ui"), "ui"), (os.path.join(ROOT, "claude_hook.py"), ".")]
     + collect_data_files("tzdata"),             # time zones (Windows has no database of its own)
     # imported inside functions / by name
-    hiddenimports=["features.parcels", "features.mail", "mailread", "features.claude", "features.chat", "features.codex",
+    hiddenimports=["features.parcels", "features.mail", "mailread", "features.claude", "features.chat", "features.codex", "features.workbuddy",
                    "features.github", "features.sysmon", "features.poke", "features.usb", "usbscan_win", "driverinfo",
                    "winprint", "instance", "vault", "plat", "wintray", "menus", "power", "claude_hook",
                    "mail_scanner", "tracker", "skinmaker", "skinmaker.pipeline", "skinmaker.providers",

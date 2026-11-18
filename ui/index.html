@@ -300,7 +300,12 @@ function clWhat(a){
   const short = t.startsWith('mcp__') ? t.split('__').slice(1).join(' › ') : t;
   const j = JSON.stringify(i); return {label: C.tools.other(short), code: j && j !== '{}' ? (j.length > 400 ? j.slice(0, 400) + '…' : j) : ''};
 }
-async function clAnswer(rid, ans){ await api().feature('claude', 'answer', rid, ans); }
+async function clAnswer(rid, ans){
+  const r = reports().find(x => x.id === rid);
+  await api().feature(r ? r.feature : 'claude', 'answer', rid, ans);
+}
+// WorkBuddy's balloons are Claude's, with its own name in them (features/workbuddy.py)
+function wbT(){ return Object.assign({}, T().cl, T().wb); }
 function clPick(rid, qi, label, multi, total){
   const sel = clSel[rid] = clSel[rid] || {};
   if(multi){ const set = new Set(sel[qi] || []); set.has(label) ? set.delete(label) : set.add(label); sel[qi] = [...set]; }
@@ -317,6 +322,7 @@ function clSend(rid){
 }
 const FICONS = {claude: '<svg viewBox="0 0 24 24" fill="#D97757"><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(0 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(30 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(60 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(90 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(120 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(150 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(180 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(210 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(240 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(270 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(300 12 12)"/><rect x="10.9" y="1.6" width="2.2" height="9.4" rx="1.1" transform="rotate(330 12 12)"/><circle cx="12" cy="12" r="2.6"/></svg>'};
 FICONS.codex = '<svg viewBox="0 0 24 24"><rect x="2" y="3.5" width="20" height="17" rx="4.5" fill="#10A37F"/><path d="M7 9l3.6 3L7 15" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 15.6h4.6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+FICONS.workbuddy = '<svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="6" fill="#2B6BFF"/><path d="M6.5 8.2l2.3 7.6 3.2-6.4 3.2 6.4 2.3-7.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 FICONS.github = '<svg viewBox="0 0 16 16" fill="#1f2328"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
 /* a chat run by a command line: Claude小姐 and Codex (features/chat.py); C = its words (T().cl / T().cx) */
 function chatView(id, C){
@@ -484,6 +490,49 @@ function msBox(s){
   if(ms.st === 'error') return line(M.msErr(ms.err || ''), 'warn', b(M.retry, ms.account ? "fcall('mail','check')" : "fcall('mail','sign_in')"));
   return '';
 }
+/* what an agent watched through its hooks reports: finished / failed / needs you / permission /
+   question. id = the feature ('claude', 'workbuddy'), C = its words (T().cl, wbT()) */
+function agentReport(id, C, r){
+  const a = r.data || {};
+  const open = `<button class="lnk" onclick="ack(${r.id}); fcall('${id}','open_claude')">${esc(C.open)} ›</button>`;
+  if(r.kind === 'done'){
+    const ask = a.ask ? `<div class="ln" style="margin-top:4px"><b>${esc(C.asks)}</b> ${esc(a.ask)}</div>` : '';
+    const acts = a.actions || [];
+    if(acts.length && a.until){    // Claude waits for your pick (see features/claude.py)
+      const btns = acts.map((l, i) => `<button class="clopt ${i ? '' : 'go'}" data-l="${esc(l)}"
+        onclick="clAnswer(${r.id},{choice:this.dataset.l})">${esc(l === (a.app || [])[i] && C.acts[l] ? C.acts[l] : l)}</button>`).join('');
+      return {html: clProj(a) + `<div class="cltext">${esc(a.summary || C.noSummary)}</div>` + ask + `<div class="clbtns">${btns}</div>`,
+        link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude};
+    }
+    return {html: clProj(a) + `<div class="cltext">${esc(a.summary || C.noSummary)}</div>` + ask, link: open};
+  }
+  if(r.kind === 'failed') return {html: clProj(a) + `<div class="ln warn">${esc(C.failed(a.error || ''))}</div>`, link: open};
+  if(r.kind === 'needs') return {html: clProj(a) + `<div class="ln">${esc(a.message || C.needsYou)}</div>`, link: open};
+  if(r.kind === 'permission'){
+    const w = clWhat(a);
+    return {html: clProj(a) + `<div class="ln"><b>${esc(w.label)}</b></div>` +
+      (w.note ? `<div class="ln dim">${esc(w.note)}</div>` : '') + (w.code ? `<div class="clcode">${esc(w.code)}</div>` : '') +
+      `<div class="clbtns"><button class="clopt go" onclick="clAnswer(${r.id},{behavior:'allow'})">${esc(C.allow)}</button>` +
+      (a.always ? `<button class="clopt" onclick="clAnswer(${r.id},{behavior:'allow',always:true})">${esc(C.always)}</button>` : '') +
+      `<button class="clopt no" onclick="clAnswer(${r.id},{behavior:'deny'})">${esc(C.deny)}</button></div>`,
+      link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude, big: !!a.run};
+  }
+  if(r.kind === 'question'){
+    const qs = a.questions || [], sel = clSel[r.id] || {};
+    const body = qs.map((q, qi) => {
+      const multi = !!q.multiSelect, cur = sel[qi];
+      const on = l => multi ? (cur || []).includes(l) : cur === l;
+      return `<div class="clq">${q.header ? `<div class="hd">${esc(q.header)}</div>` : ''}<div class="ln">${esc(q.question)}</div>
+        <div class="clbtns">${(q.options || []).map(o => `<button class="clopt ${on(o.label) ? 'on' : ''}" title="${esc(o.description || '')}"
+          onclick="clPick(${r.id},${qi},this.dataset.l,${multi},${qs.length})" data-l="${esc(o.label)}">${esc(o.label)}</button>`).join('')}</div></div>`;
+    }).join('');
+    const need = qs.length > 1 || qs.some(q => q.multiSelect);
+    const all = qs.every((q, qi) => sel[qi] && sel[qi].length);
+    const send = need ? `<div class="clbtns"><button class="clopt go" ${all ? '' : 'disabled'} onclick="clSend(${r.id})">${esc(C.send)}</button></div>` : '';
+    return {html: clProj(a) + body + send, link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude, big: !!a.run};
+  }
+  return {html: ''};
+}
 const FEATURES = {
   parcels: {
     report(r){
@@ -559,48 +608,23 @@ const FEATURES = {
     open(){ fcall('claude', 'opened'); },
     closed(){ api().feature('claude', 'closed'); },
     view(){ return chatView('claude', T().cl); },
-    report(r){
-      const C = T().cl, a = r.data || {};
-      if(r.kind === 'reply') return chatReply('claude', C, r);
-      const open = `<button class="lnk" onclick="ack(${r.id}); fcall('claude','open_claude')">${esc(C.open)} ›</button>`;
-      if(r.kind === 'done'){
-        const ask = a.ask ? `<div class="ln" style="margin-top:4px"><b>${esc(C.asks)}</b> ${esc(a.ask)}</div>` : '';
-        const acts = a.actions || [];
-        if(acts.length && a.until){    // Claude waits for your pick (see features/claude.py)
-          const btns = acts.map((l, i) => `<button class="clopt ${i ? '' : 'go'}" data-l="${esc(l)}"
-            onclick="clAnswer(${r.id},{choice:this.dataset.l})">${esc(l === (a.app || [])[i] && C.acts[l] ? C.acts[l] : l)}</button>`).join('');
-          return {html: clProj(a) + `<div class="cltext">${esc(a.summary || C.noSummary)}</div>` + ask + `<div class="clbtns">${btns}</div>`,
-            link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude};
-        }
-        return {html: clProj(a) + `<div class="cltext">${esc(a.summary || C.noSummary)}</div>` + ask, link: open};
-      }
-      if(r.kind === 'failed') return {html: clProj(a) + `<div class="ln warn">${esc(C.failed(a.error || ''))}</div>`, link: open};
-      if(r.kind === 'needs') return {html: clProj(a) + `<div class="ln">${esc(a.message || C.needsYou)}</div>`, link: open};
-      if(r.kind === 'permission'){
-        const w = clWhat(a);
-        return {html: clProj(a) + `<div class="ln"><b>${esc(w.label)}</b></div>` +
-          (w.note ? `<div class="ln dim">${esc(w.note)}</div>` : '') + (w.code ? `<div class="clcode">${esc(w.code)}</div>` : '') +
-          `<div class="clbtns"><button class="clopt go" onclick="clAnswer(${r.id},{behavior:'allow'})">${esc(C.allow)}</button>` +
-          (a.always ? `<button class="clopt" onclick="clAnswer(${r.id},{behavior:'allow',always:true})">${esc(C.always)}</button>` : '') +
-          `<button class="clopt no" onclick="clAnswer(${r.id},{behavior:'deny'})">${esc(C.deny)}</button></div>`,
-          link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude, big: !!a.run};
-      }
-      if(r.kind === 'question'){
-        const qs = a.questions || [], sel = clSel[r.id] || {};
-        const body = qs.map((q, qi) => {
-          const multi = !!q.multiSelect, cur = sel[qi];
-          const on = l => multi ? (cur || []).includes(l) : cur === l;
-          return `<div class="clq">${q.header ? `<div class="hd">${esc(q.header)}</div>` : ''}<div class="ln">${esc(q.question)}</div>
-            <div class="clbtns">${(q.options || []).map(o => `<button class="clopt ${on(o.label) ? 'on' : ''}" title="${esc(o.description || '')}"
-              onclick="clPick(${r.id},${qi},this.dataset.l,${multi},${qs.length})" data-l="${esc(o.label)}">${esc(o.label)}</button>`).join('')}</div></div>`;
-        }).join('');
-        const need = qs.length > 1 || qs.some(q => q.multiSelect);
-        const all = qs.every((q, qi) => sel[qi] && sel[qi].length);
-        const send = need ? `<div class="clbtns"><button class="clopt go" ${all ? '' : 'disabled'} onclick="clSend(${r.id})">${esc(C.send)}</button></div>` : '';
-        return {html: clProj(a) + body + send, link: `<span>${esc(clLeft(a))}</span>`, ok: C.inClaude, big: !!a.run};
-      }
-      return {html: ''};
+    report(r){ return r.kind === 'reply' ? chatReply('claude', T().cl, r) : agentReport('claude', T().cl, r); },
+  },
+  workbuddy: {
+    open(){ fcall('workbuddy', 'opened'); },
+    closed(){ api().feature('workbuddy', 'closed'); },
+    view(){
+      const W = wbT(), s = state.f.workbuddy || {}, v = chatView('workbuddy', W);
+      const st = !s.app ? W.noApp : s.listening ? W.watching : s.enabled ? W.otherCopy : W.notWatching;
+      const turns = (s.chat || {}).turns || [];
+      v.title = W.miss;
+      v.html = `<div class="ln ${s.listening ? '' : 'warn'}">${esc(st)}</div>` +
+        (turns.length ? '' : `<div class="ln dim">${esc(W.how)}</div>`) + v.html;
+      v.foot += `<button class="lnk" style="margin-left:8px" onclick="fcall('workbuddy','open_claude')">${esc(W.open)} ›</button>` +
+        `<button class="lnk" style="margin-left:8px" onclick="api().open_settings('workbuddy')">${esc(W.toSettings)} ›</button>`;
+      return v;
     },
+    report(r){ return r.kind === 'reply' ? chatReply('workbuddy', wbT(), r) : agentReport('workbuddy', wbT(), r); },
   },
   codex: {
     open(){ fcall('codex', 'opened'); },

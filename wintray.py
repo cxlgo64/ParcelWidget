@@ -111,6 +111,7 @@ class Tray:
         clr.AddReference("System.Drawing")
         from System.Windows.Forms import ContextMenuStrip, NotifyIcon
         _no_taskbar_button(self._form())
+        _see_through(self._form())
         self.menu, self.pop = ContextMenuStrip(), ContextMenuStrip()
         self.menu.Opening += self._opening
         self.pop.Opening += self._opening
@@ -207,6 +208,31 @@ class Tray:
         self._count = (n, delivered)
         if self.icon is not None:
             self._ui(self._show_count)
+
+
+def _see_through(form):
+    """Keep the character's window see-through. pywebview only makes the web view transparent;
+    the window under it still has Windows Forms' own grey background, which shows as a grey box
+    behind her as soon as Windows repaints the window (clicking her is enough). So the window
+    becomes one "sheet of glass" (the frame extended over all of it) painted black: on glass,
+    black is transparent, and the web view's own picture is drawn over it as it is. Unlike a
+    colour key this keeps soft edges and shadows, and the mouse still reaches her."""
+    try:
+        import ctypes
+        from System.Drawing import Color
+
+        class Margins(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_int) for n in ("left", "right", "top", "bottom")]
+
+        form.BackColor = Color.Black
+        dwm = ctypes.WinDLL("dwmapi")
+        dwm.DwmExtendFrameIntoClientArea.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        hr = dwm.DwmExtendFrameIntoClientArea(form.Handle.ToInt64(), ctypes.byref(Margins(-1, -1, -1, -1)))
+        if hr:
+            log("couldn't make the window see-through: %#x" % (hr & 0xffffffff))
+        form.Invalidate()
+    except Exception as ex:
+        log("couldn't make the window see-through: %r" % ex)
 
 
 def _no_taskbar_button(form):

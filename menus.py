@@ -7,6 +7,7 @@ right-clicking the character (menubar.py draws it on macOS).
     ─────────
     ✓ Show Widget
     Settings…          ⌘,
+    Restart Parcel Widget
     Quit Parcel Widget ⌘Q
 
 Item: {"title", "key", "checked", "enabled", "shortcut"} | {"title", "sub": [items]} |
@@ -16,8 +17,10 @@ A click sends its key to handle(): "app:<action>" or "<feature id>:<action>".
 from core import log
 
 L = {
-    "en": {"show": "Show Widget", "settings": "Settings…", "quit": "Quit Parcel Widget"},
-    "zh": {"show": "显示小组件", "settings": "设置…", "quit": "退出快递小组件"},
+    "en": {"show": "Show Widget", "settings": "Settings…", "restart": "Restart Parcel Widget",
+           "quit": "Quit Parcel Widget"},
+    "zh": {"show": "显示小组件", "settings": "设置…", "restart": "重启快递小组件",
+           "quit": "退出快递小组件"},
 }
 
 
@@ -42,6 +45,7 @@ def spec(app):
         {"sep": True},
         {"title": T["show"], "key": "app:show", "checked": app.visible},
         {"title": T["settings"], "key": "app:settings", "shortcut": ","},
+        {"title": T["restart"], "key": "app:restart"},
         {"title": T["quit"], "key": "app:quit", "shortcut": "q"},
     ]
     return out
@@ -56,6 +60,8 @@ def handle(app, key):
                 app.toggle_window()
             elif action == "settings":
                 app.open_settings("general")
+            elif action == "restart":
+                app.restart()
             elif action == "quit":
                 app.quit()
             return

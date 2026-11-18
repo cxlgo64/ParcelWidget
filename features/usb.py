@@ -185,9 +185,10 @@ class USB(Feature):
                     "err": self.online.get("err")}
             for k, v in data.items():
                 app.reports.set(r, k, v)
-            log("usb: %d devices, %d Apple drivers, %d other drivers%s" % (
-                data["n"], data["apple"], data["third"],
-                ", macOS update %s" % data["macos"]["update"] if data["macos"]["update"] else ""))
+            log("usb: %d devices, %d %s drivers, %d other drivers%s" % (
+                data["n"], data["apple"], "Windows" if IS_WIN else "Apple", data["third"],
+                ", " + ("Windows updates waiting: %s" if IS_WIN else "macOS update %s") % data["macos"]["update"]
+                if data["macos"]["update"] else ""))
         except Exception as e:
             log(traceback.format_exc())
             app.reports.set(r, "st", "done")

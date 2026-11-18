@@ -308,6 +308,108 @@ def current():
     return int(p) if p.isdigit() else 1
 
 
+# ---------------- stopping every copy of the widget (quit / restart) ----------------
+# A double-clicked start.bat, install.bat's login shortcut and the system Python can
+# each leave an `app.py` process behind. Quitting only the one you clicked leaves the
+# others running, so the tray icon / old code comes back. These helpers find *only*
+# this project's processes (and the CLI children they spawned) and stop them all.
+# Nothing else on the PC — another Python script named app.py elsewhere, the desktop
+# app's own node processes — is touched.
+_SCAN = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(python|pythonw|node)\\.exe$' } "
+         "| Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine | ConvertTo-Json -Compress -Depth 3")
+
+
+def _norm(p):
+    return os.path.normcase(str(p or "")).replace("/", "\\").lower()
+
+
+def release():
+    """Give up this copy's lock before relaunching, so the new process can take it."""
+    global _lock_file
+    try:
+        if _lock_file is not None:
+            _lock_file.close()
+    except OSError:
+        pass
+    _lock_file = None
+
+
+def stop_others(project_dir, keep_pid=None):
+    """Stop every process running this project's app.py (plus the CodeBuddy CLI children
+    they spawned), except `keep_pid`. Returns (stopped_count, pids).
+
+    `project_dir` is the folder holding app.py. Identification is deliberately strict:
+      * python(w).exe whose command line contains this project's absolute app.py path, OR
+      * python(w) under this project's folder (.venv) running an app.py, OR
+      * pythonw.exe launched as a bare `app.py` (the GUI way this widget starts) —
+        covers a stray `C:\\Python311\\pythonw.exe app.py` left by an older launch.
+      * node.exe running CodeBuddy whose parent chain reaches one of those processes.
+    """
+    import json
+    import re
+    from plat import powershell
+
+    here = _norm(project_dir)
+    app_py = _norm(os.path.join(project_dir, "app.py"))
+    code, out, _err = powershell(_SCAN, timeout=25)
+    if code != 0 or not out.strip():
+        log("stop_others: process scan failed (code %s)" % code)
+        return 0, []
+    try:
+        procs = json.loads(out)
+    except Exception as ex:
+        log("stop_others: bad scan output %r" % ex)
+        return 0, []
+    if isinstance(procs, dict):
+        procs = [procs]
+
+    ppid = {}
+    widget = set()
+    nodes = []
+    bare = re.compile(r'(?:^|[\s"])app\.py(?=$|[\s"])')
+    for p in procs:
+        try:
+            pid = int(p.get("ProcessId") or 0)
+        except (TypeError, ValueError):
+            continue
+        if pid <= 0:
+            continue
+        ppid[pid] = int(p.get("ParentProcessId") or 0)
+        name = str(p.get("Name") or "").lower()
+        cmd = _norm(p.get("CommandLine"))
+        exe = _norm(p.get("ExecutablePath"))
+        if name in ("python.exe", "pythonw.exe"):
+            ours = (app_py in cmd
+                    or (here and exe.startswith(here + "\\") and "app.py" in cmd)
+                    or (name == "pythonw.exe" and bool(bare.search(cmd))))
+            if ours:
+                widget.add(pid)
+        elif name == "node.exe" and "codebuddy" in cmd:
+            nodes.append(pid)
+
+    # CLI children inherit the widget's process chain; walk up a few levels.
+    def _descendant(pid, roots):
+        seen, cur = set(), ppid.get(pid, 0)
+        for _ in range(8):
+            if not cur or cur in seen:
+                break
+            if cur in roots:
+                return True
+            seen.add(cur)
+            cur = ppid.get(cur, 0)
+        return False
+
+    targets = set(widget)
+    targets |= {pid for pid in nodes if _descendant(pid, widget)}
+    if keep_pid:
+        targets.discard(int(keep_pid))
+    if not targets:
+        return 0, []
+    ids = ",".join(str(p) for p in sorted(targets))
+    powershell("Stop-Process -Id @(%s) -Force -ErrorAction SilentlyContinue" % ids, timeout=25)
+    return len(targets), sorted(targets)
+
+
 def listen(on_show):
     """call on_show() (main thread) when another launch asks this copy to come forward"""
     global _observer
