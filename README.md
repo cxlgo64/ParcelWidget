@@ -66,6 +66,11 @@ and a CPU / memory / network monitor drawn as candlestick charts.
   always uses the desktop-only endpoint, so the chat deliberately avoids it: it looks for the full npm CLI in every
   install location and only falls back to the bundled copy as a last resort. See
   [WorkBuddy sign-in](#workbuddy-sign-in) for why that matters and how the chat keeps its own clean environment.
+- 📺 **Anime** (追番): every day, which shows of the season got a new episode, read from
+  [Mikan Project](https://mikanani.me) (its public home page: the same schedule ani-rss uses, no account, no extra
+  program). The daily panel shows today's numbers (out today, on today's schedule, still due, this week) and a
+  Monday-to-Sunday strip of the last 7 days; when a weekday comes round again, last week's day is replaced.
+  A summary pops up once a day (from 9:00, changeable); a balloon for each new episode is optional (Settings → 📺 Anime)
 - 🐙 **GitHub**: your repositories (latest push first: private or public, language, stars, open issues and
   pull requests, whether checks passed), your unread notifications, and the copies on this Mac (uncommitted
   files, commits not pushed). Asked through the GitHub command line (`gh`), signed in as you: the widget never
@@ -283,7 +288,7 @@ Many Amazon emails only contain a "Track package" button with no number. Add tho
 - **Windows, she has a solid background instead of a see-through one**: update the WebView2 runtime (Microsoft Edge
   updates it), and pywebview (`.venv\Scripts\pip install -U pywebview`)
 - **Windows, no tray icon**: it may be hidden behind the `^` arrow near the clock; drag it out to keep it visible
-- **Tests**: `.venv/bin/python -m pytest test_parser.py`
+- **Tests**: `.venv/bin/python -m pytest test_parser.py test_anime.py`
 
 ## Project layout
 | File | What it does |
@@ -295,7 +300,7 @@ Many Amazon emails only contain a "Track package" button with no number. Add tho
 | `power.py` | Sleep / wake of the computer |
 | `mailread.py` | Reading the inbox: Apple Mail (JavaScript for Automation) or the classic Outlook on Windows (PowerShell), Outlook through Microsoft (Graph, device code sign-in), the first sort |
 | `claude_hook.py` | Claude Code hook: hands Claude's events to her over a local socket, returns your answer |
-| `features/` | The character's jobs: `parcels.py`, `mail.py`, `claude.py`, `codex.py` (both chats: `chat.py`), `workbuddy.py`, `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
+| `features/` | The character's jobs: `parcels.py`, `mail.py`, `claude.py`, `codex.py` (both chats: `chat.py`), `workbuddy.py`, `anime.py`, `sysmon.py`, `usb.py`, `poke.py` (how to add one: `features/__init__.py`) |
 | `usbscan.py` | USB devices, their drivers and the printers (macOS: ioreg, kmutil, CUPS) |
 | `usbscan_win.py` | USB devices and their drivers (Windows: the registry, the configuration manager) |
 | `instance.py` | Which copy this is: one already open → go to it or open another; each copy's data folder; finds and stops this project's processes (and their CLI children) for Quit / Restart |

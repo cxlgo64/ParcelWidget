@@ -239,6 +239,18 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
 </section>
 
 <!-- GitHub -->
+<!-- 📺 Anime (features/anime.py) -->
+<section class="tab" id="tab-anime">
+  <div class="hint" style="margin-top:12px" data-t="anS.intro"></div>
+  <div class="hint" id="a_last" style="color:var(--text)"></div>
+  <div class="row" style="margin-top:8px"><span style="min-width:90px" data-t="anS.every"></span><select id="a_every" style="width:150px" onchange="saveAnime()"></select></div>
+  <div class="row"><span style="min-width:90px" data-t="anS.host"></span><select id="a_host" style="width:200px" onchange="saveAnime()"></select></div>
+  <div class="row" style="margin-top:8px"><label class="chk" style="color:var(--text);margin:0"><input type="checkbox" id="a_sum" onchange="saveAnime()"><span data-t="anS.summary"></span></label>
+    <select id="a_at" style="width:100px" onchange="saveAnime()"></select></div>
+  <label class="chk" style="color:var(--text)"><input type="checkbox" id="a_new" onchange="saveAnime()"><span data-t="anS.notify"></span></label>
+  <div class="hint" style="margin-top:12px" data-t="anS.privacy"></div>
+</section>
+
 <section class="tab" id="tab-github">
   <div class="hint" style="margin-top:12px" data-t="ghS.intro"></div>
   <div class="hint" id="g_acct" style="color:var(--text)"></div>
@@ -339,7 +351,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:12px
 <script>
 /* The settings window. Tabs: General (the widget), one per feature, and Custom skin.
    Opened from the menus: settings.html#general | #parcels | #parcels:add | #sysmon | #skin | #log */
-const TABS = ['general', 'features', 'parcels', 'mail', 'claude', 'codex', 'workbuddy', 'github', 'sysmon', 'usb', 'printers', 'skin', 'log'];
+const TABS = ['general', 'features', 'parcels', 'mail', 'anime', 'claude', 'codex', 'workbuddy', 'github', 'sysmon', 'usb', 'printers', 'skin', 'log'];
 let tab = 'general', state = {f: {}}, settings = null;
 
 function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1500); }
@@ -357,8 +369,8 @@ function openTab(t){
   logTimer();
 }
 // the sidebar: an icon tile and a name per page, in groups (app · features · tools)
-const NAV_GROUPS = [['general', 'features'], ['parcels', 'mail', 'claude', 'codex', 'workbuddy', 'github', 'sysmon', 'usb'], ['printers', 'skin', 'log']];
-const NAV_ICON = {general: ['⚙️', '#8e8e93'], features: ['🧩', '#5e5ce6'], parcels: ['📦', '#c08a4a'], mail: ['✉️', '#0a84ff'],
+const NAV_GROUPS = [['general', 'features'], ['parcels', 'mail', 'anime', 'claude', 'codex', 'workbuddy', 'github', 'sysmon', 'usb'], ['printers', 'skin', 'log']];
+const NAV_ICON = {general: ['⚙️', '#8e8e93'], features: ['🧩', '#5e5ce6'], parcels: ['📦', '#c08a4a'], mail: ['✉️', '#0a84ff'], anime: ['📺', '#ff7a59'],
   claude: ['🤖', '#d97757'], codex: ['🌀', '#10a37f'], workbuddy: ['🧑‍💼', '#2b6bff'], github: ['🐙', '#24292f'], sysmon: ['📊', '#34c759'], usb: ['🔌', '#ff9f0a'],
   printers: ['🖨', '#64748b'], skin: ['🎨', '#ff375f'], log: ['📝', '#8e8e93']};
 function navName(k){ return String(T().tabs[k] || k).replace(/^[^\p{L}\p{N}]+/u, '').trim(); }   // "📦 Parcels" -> "Parcels"
@@ -383,7 +395,7 @@ async function load(){
   if(state.lang !== lang){ lang = state.lang; applyStaticText(); renderNav(); settings = null; }
   document.title = T().title;
   if(!settings){ settings = await api().get_settings(); fillForms(); }
-  fillFeatures(); fillGeneral(); fillPackages(); fillMail(); fillClaude(); fillCodex(); fillWorkbuddy(); fillGithub(); fillSysmon(); fillUsb(); fillPrinters();
+  fillFeatures(); fillGeneral(); fillPackages(); fillMail(); fillClaude(); fillCodex(); fillWorkbuddy(); fillGithub(); fillAnime(); fillSysmon(); fillUsb(); fillPrinters();
   if(tab === 'skin') renderSkinJob(state.skin_job);
 }
 window.onBackendUpdate = () => load();
@@ -536,6 +548,22 @@ function fillGithub(){
 async function saveGithub(){
   await api().save_settings('github', {forks: $('g_forks').checked, archived: $('g_arch').checked, notify: $('g_notify').checked,
     every: +$('g_every').value, roots: $('g_roots').value.split('\n').map(x => x.trim()).filter(Boolean)});
+  settings = null; await load(); toast(T().saved);
+}
+
+/* ---------------- 📺 Anime ---------------- */
+function fillAnime(){
+  const s = settings && settings.anime, S = T().anS;
+  if(!s) return;
+  $('a_last').textContent = s.last ? S.last(new Date(s.last * 1000).toLocaleString()) + (s.err ? ' · ' + s.err : '') : S.never;
+  $('a_every').innerHTML = s.everys.map(v => `<option value="${v}" ${v === s.every ? 'selected' : ''}>${esc(S.everyN(v))}</option>`).join('');
+  $('a_host').innerHTML = s.hosts.map(v => `<option value="${esc(v)}" ${v === s.host ? 'selected' : ''}>${esc(v.replace('https://', ''))}</option>`).join('');
+  $('a_sum').checked = !!s.summary; $('a_new').checked = !!s.notify_new;
+  $('a_at').innerHTML = [...Array(24).keys()].map(h => `<option value="${h}" ${h === s.summary_at ? 'selected' : ''}>${esc(S.at(h))}</option>`).join('');
+}
+async function saveAnime(){
+  await api().save_settings('anime', {every: +$('a_every').value, host: $('a_host').value, summary: $('a_sum').checked,
+    summary_at: +$('a_at').value, notify_new: $('a_new').checked});
   settings = null; await load(); toast(T().saved);
 }
 

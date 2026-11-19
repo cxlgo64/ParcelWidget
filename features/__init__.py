@@ -75,6 +75,7 @@ class Feature:
 def make_features(app):
     from .claude import Claude
     from .codex import Codex
+    from .anime import Anime
     from .github import GitHub
     from .mail import Mail
     from .parcels import Parcels
@@ -83,4 +84,4 @@ def make_features(app):
     from .usb import USB
     from .workbuddy import WorkBuddy
     # order = order of her hover buttons and of the menus
-    return [Parcels(app), Mail(app), SysMon(app), USB(app), Claude(app), Codex(app), WorkBuddy(app), GitHub(app), Poke(app)]
+    return [Parcels(app), Mail(app), Anime(app), SysMon(app), USB(app), Claude(app), Codex(app), WorkBuddy(app), GitHub(app), Poke(app)]

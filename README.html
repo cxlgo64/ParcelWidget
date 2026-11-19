@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parcel Widget 快递小组件 · 使用说明</title>
+<style>
+:root{
+  --bg:#f6f8fc; --paper:#fff; --ink:#1c2433; --muted:#5d6b82; --line:#dfe6f1;
+  --frame:#2f80ed; --frame-soft:#e8f1fe; --code:#f1f4f9; --warn:#b26a00; --warn-bg:#fff6e3;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#11151c; --paper:#19202b; --ink:#e7ecf4; --muted:#9aa7bd; --line:#2a3443;
+    --frame:#5b9cf5; --frame-soft:#1d2b40; --code:#222b38; --warn:#f0b354; --warn-bg:#33290f; }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.7;
+  font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif}
+a{color:var(--frame);text-decoration:none} a:hover{text-decoration:underline}
+code,pre{font-family:Consolas,"SF Mono",Menlo,monospace;font-size:13px}
+code{background:var(--code);padding:1px 6px;border-radius:5px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:10px 0}
+pre code{background:none;padding:0}
+.wrap{display:grid;grid-template-columns:210px minmax(0,1fr);gap:36px;max-width:1120px;margin:0 auto;padding:28px 24px 80px}
+nav{position:sticky;top:24px;align-self:start;font-size:14px}
+nav b{display:block;margin-bottom:8px;color:var(--muted);font-size:12px;letter-spacing:.08em}
+nav a{display:block;padding:5px 10px;border-radius:8px;color:var(--ink)}
+nav a:hover{background:var(--frame-soft);text-decoration:none}
+header{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:center;
+  background:var(--paper);border:2.5px solid var(--frame);border-radius:22px;padding:26px 30px;
+  box-shadow:4px 5px 0 rgba(47,128,237,.18)}
+header h1{margin:0 0 6px;font-size:30px;line-height:1.25}
+header p{margin:6px 0;color:var(--muted)}
+header img{width:150px;height:auto;image-rendering:auto}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.tags span{background:var(--frame-soft);color:var(--frame);font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px}
+h2{font-size:22px;margin:44px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--line);scroll-margin-top:16px}
+h3{font-size:16.5px;margin:24px 0 8px}
+.shot{display:block;max-width:100%;border-radius:14px;border:1px solid var(--line);margin:18px 0}
+ol,ul{padding-left:22px} li{margin:5px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;margin-top:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card h3{margin:0 0 6px;font-size:15.5px}
+.card p{margin:0;color:var(--muted);font-size:14px}
+.card .sub{margin-top:6px;font-size:12.5px}
+table{width:100%;border-collapse:collapse;margin:12px 0;background:var(--paper);border-radius:12px;overflow:hidden;
+  border:1px solid var(--line);font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{background:var(--frame-soft);font-weight:600} tr:last-child td{border-bottom:0}
+td:first-child{white-space:nowrap}
+.tablewrap{overflow-x:auto}
+.note{background:var(--warn-bg);border-left:4px solid var(--warn);border-radius:8px;padding:10px 14px;margin:14px 0;font-size:14px}
+.tip{background:var(--frame-soft);border-left:4px solid var(--frame);border-radius:8px;padding:10px 14px;margin:14px 0;font-size:14px}
+footer{margin-top:50px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:14px}
+@media (max-width:820px){
+  .wrap{grid-template-columns:1fr;gap:18px} nav{position:static;display:flex;flex-wrap:wrap;gap:4px} nav b{width:100%}
+  header{grid-template-columns:1fr} header img{width:110px}
+  td:first-child{white-space:normal}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav>
+  <b>目录</b>
+  <a href="#how">她怎么工作</a>
+  <a href="#features">功能一览</a>
+  <a href="#install">安装</a>
+  <a href="#platforms">Windows 与 macOS</a>
+  <a href="#agents">连接 AI 助手</a>
+  <a href="#skins">皮肤</a>
+  <a href="#privacy">隐私</a>
+  <a href="#tracking">能识别的单号</a>
+  <a href="#trouble">常见问题</a>
+  <a href="#layout">项目结构</a>
+</nav>
+
+<main>
+
+<header>
+  <div>
+    <h1>Parcel Widget 快递小组件</h1>
+    <p>住在桌面上的一个动画小角色。她替你做一些小事，做完后在漫画气泡里告诉你结果：
+       查快递、看邮件、盯着 AI 助手干活、看系统状态、检查 USB 驱动和打印机。</p>
+    <div class="tags">
+      <span>Windows 10 (2004+) / 11</span><span>macOS 11+</span><span>中文 / English</span><span>版本 0.8.1</span><span>MIT</span>
+    </div>
+  </div>
+  <img src="ui/skins/whale-maid/thumb.png" alt="默认角色">
+</header>
+
+<img class="shot" src="docs/preview.png" alt="小组件预览：角色、气泡和悬停按钮">
+
+<h2 id="how">她怎么工作</h2>
+<ol>
+  <li><b>启动时</b>，每项任务各跑一次，并在气泡里一步步汇报。每条汇报点按钮确认。
+      每次检查都会记下时间和结果；如果下次计划检查还没到就重启了，她直接显示上次的结果，不重复检查。</li>
+  <li><b>之后她进入空闲</b>，任务按各自的时间表在后台运行。快递默认 09:00 到 19:00 每 90 分钟查一次（可改）；
+      只有情况变化时气泡才会再弹出来。电脑睡眠时什么都不运行，唤醒后安静地补查一次；网络没恢复就隔 3 分钟重试，最多 3 次。</li>
+  <li><b>空闲时</b>，把鼠标移到她身上会出现一圈按钮，每项功能一个。点她一下是"戳她"，按住可以拖动。</li>
+  <li><b>右键点她</b>（或点托盘 / 菜单栏图标）打开菜单：每项功能一个子菜单，以及显示小组件、设置、退出。
+      细节都在<b>设置</b>窗口里。</li>
+</ol>
+
+<h2 id="features">功能一览</h2>
+<div class="cards">
+  <div class="card"><h3>📦 快递</h3>
+    <p>只读扫描 Gmail（IMAP + 应用专用密码），找出 UPS、FedEx、USPS、Amazon 的单号，再用真实浏览器到 parcelsapp.com 读最新进展。
+       已送达的有"✓ 收到了"按钮；也可以在气泡里手动加单号。</p></div>
+  <div class="card"><h3>✉️ 邮件</h3>
+    <p>把收件箱分成重要、其他、可以跳过三类，可加自己的规则。只读：不移动、不删除、不标已读。
+       打开过一次邮件功能后，每 30 分钟看一次，只在有新的重要未读邮件时提醒。</p></div>
+  <div class="card"><h3>🤖 关注 Claude Code</h3>
+    <p>Claude 做完时告诉你结果；它请求权限或提问时，直接在气泡里点"允许 / 总是允许 / 拒绝"或选答案。
+       不答或点"去 Claude 里答"，就交回 Claude 自己的窗口。</p></div>
+  <div class="card"><h3>✨ Claude小姐</h3>
+    <p>在气泡里输入任务，由 <code>claude</code> 命令行在你选的文件夹里运行。能看到它正在做什么和最后的回答，
+       可以追问、停止、开新对话，还能选模型和思考深度。</p></div>
+  <div class="card"><h3>🌀 Codex</h3>
+    <p>同样的气泡对话，由 OpenAI 的 <code>codex exec</code> 运行。Codex 在沙箱里工作：只能改你选的文件夹，不能联网；
+       也可以设成只读。</p></div>
+  <div class="card"><h3>🧑‍💼 关注 WorkBuddy</h3>
+    <p>腾讯 WorkBuddy 应用里的任务做完、出错、请求权限或提问时，在气泡里提示并可代答。</p>
+    <p class="sub">没有气泡对话：WorkBuddy 没有独立命令行，登录也只在应用内。</p></div>
+  <div class="card"><h3>🐙 GitHub</h3>
+    <p>你的仓库（最近推送在前）、未读通知，以及本机副本里未提交、未推送的内容。通过 <code>gh</code> 命令行查询，
+       小组件看不到你的令牌。</p></div>
+  <div class="card"><h3>📊 系统状态</h3>
+    <p>CPU、内存、下载和上传，画成 K 线图。每根 K 线 5 秒到 1 分钟，红涨或绿涨可选。</p></div>
+  <div class="card"><h3>🔌 USB 设备</h3>
+    <p>列出插着的 USB 设备和各自的驱动，再上网查驱动是否有新版并给出链接。不会替你更新任何东西。
+       新插入的设备 30 秒内发现。</p></div>
+  <div class="card"><h3>🖨 打印机</h3>
+    <p>按实体打印机分组显示。一键免驱动添加网络打印机，清理重复条目，设默认，打测试页。</p></div>
+  <div class="card"><h3>👉 戳一戳</h3>
+    <p>随机一个动作加一句话。</p></div>
+  <div class="card"><h3>其他</h3>
+    <p>动画皮肤和 AI 生成的自定义皮肤；屏幕尺寸预设；置顶；可以同时开多个互相独立的副本（像多个账号）。</p></div>
+</div>
+
+<h2 id="install">安装</h2>
+
+<h3>Windows：从源码安装</h3>
+<p>需要 <a href="https://www.python.org/downloads/windows/">Python</a> 3.10 到 3.13（安装时勾选 "Add python.exe to PATH"），
+   以及 WebView2 运行时（Windows 11 和较新的 Windows 10 自带）。</p>
+<pre><code>git clone https://github.com/cxlgo64/ParcelWidget.git
+cd ParcelWidget
+git checkout windows
+install.bat</code></pre>
+<p><code>install.bat</code> 会创建 <code>.venv</code>、安装依赖、设置登录时自动启动，然后启动她。
+   之后手动启动用 <code>start.bat</code>；取消自动启动用 <code>uninstall_autostart.bat</code>。</p>
+<div class="note"><b>路径别太深。</b>把项目放在较短的路径下，例如 <code>D:\ParcelWidget</code>。
+   路径太长（大约超过 190 个字符）时，Windows 会拒绝加载虚拟环境里的 DLL，启动时报"文件名或扩展名太长"。</div>
+<div class="tip">启动后她出现在主屏幕右下角、任务栏上方。托盘图标在时钟旁边，可能收在 <code>^</code> 箭头里，拖出来就能一直显示。</div>
+
+<h3>Windows：打包成应用</h3>
+<pre><code>packaging\build_win.bat</code></pre>
+<p>生成 <code>dist\ParcelWidget-&lt;版本&gt;-Windows-x64.zip</code>，解压后运行 <code>Parcel Widget.exe</code>，不需要 Python。
+   应用没有签名，第一次运行 Windows 可能提示"已保护你的电脑"：点"更多信息"→"仍要运行"。</p>
+
+<h3>macOS：下载应用</h3>
+<ol>
+  <li>从 <a href="https://github.com/cxlgo64/ParcelWidget/releases">Releases</a> 下载
+      <code>ParcelWidget-&lt;版本&gt;-macOS-arm64.dmg</code>（Apple 芯片；Intel 机型需自行构建）。</li>
+  <li>打开后把 <b>Parcel Widget</b> 拖进"应用程序"。</li>
+  <li>应用没有 Apple 签名，第一次请右键 → 打开 → 打开。</li>
+</ol>
+
+<h3>macOS：从源码安装</h3>
+<pre><code>git clone https://github.com/cxlgo64/ParcelWidget.git
+cd ParcelWidget
+chmod +x *.command
+./install.command</code></pre>
+<p>手动启动：<code>./start.command</code>；构建 DMG：<code>./packaging/build_mac.sh</code>。</p>
+
+<h3>第一次使用</h3>
+<ul>
+  <li><b>快递</b>：右键她 → 设置 → 📦 快递，用 Gmail 的<a href="https://myaccount.google.com/apppasswords">应用专用密码</a>连接邮箱（需已开启两步验证）。</li>
+  <li><b>AI 助手</b>：在设置里各自的页面打开，见<a href="#agents">连接 AI 助手</a>。</li>
+  <li><b>语言</b>：设置 → 通用。</li>
+</ul>
+
+<h2 id="platforms">Windows 与 macOS 的区别</h2>
+<p>两个平台功能相同，只是各用各的系统部件。</p>
+<div class="tablewrap"><table>
+  <tr><th></th><th>Windows</th><th>macOS</th></tr>
+  <tr><td>她住在哪</td><td>时钟旁的托盘图标，没有任务栏按钮。左键显示 / 隐藏，右键打开菜单</td><td>菜单栏图标，没有程序坞图标</td></tr>
+  <tr><td>📦 查快递的浏览器</td><td>默认 Microsoft Edge，可换 Chrome、Brave、Firefox 等</td><td>默认 Google Chrome</td></tr>
+  <tr><td>✉️ 本机邮件</td><td>经典版 Outlook 桌面应用（需开着）。新版 Outlook 和"邮件"应用请用 Microsoft 登录</td><td>Apple 邮件</td></tr>
+  <tr><td>保存的密码</td><td>加密文件（Windows 数据保护）+ Windows Hello</td><td>加密文件 + Touch ID</td></tr>
+  <tr><td>🐙 GitHub 命令行</td><td><code>winget install GitHub.cli</code></td><td><code>brew install gh</code></td></tr>
+  <tr><td>🔌 驱动更新来源</td><td>Windows 更新</td><td>macOS 软件更新</td></tr>
+  <tr><td>🖨 打印机</td><td>免驱动添加（Microsoft IPP 类驱动）</td><td>一键 AirPrint</td></tr>
+  <tr><td>数据文件夹</td><td><code>%APPDATA%\ParcelWidget</code></td><td><code>~/Library/Application Support/ParcelWidget</code></td></tr>
+</table></div>
+
+<h2 id="agents">连接 AI 助手</h2>
+<p>有两种连接方式：<b>关注</b>（助手在自己的窗口里干活，她负责通知和代答）和<b>气泡对话</b>（你在她的气泡里派任务）。</p>
+<div class="tablewrap"><table>
+  <tr><th>助手</th><th>关注</th><th>气泡对话</th><th>需要什么</th></tr>
+  <tr><td>Claude Code</td><td>✓</td><td>✓（Claude小姐）</td><td><code>claude</code> 命令行，已登录</td></tr>
+  <tr><td>Codex</td><td>–</td><td>✓</td><td><code>npm install -g @openai/codex</code>，已登录</td></tr>
+  <tr><td>WorkBuddy</td><td>✓</td><td>–</td><td>已安装 WorkBuddy 桌面应用</td></tr>
+</table></div>
+<h3>"关注"是怎么实现的</h3>
+<p>在设置里打开"关注"后，小组件会往助手的设置文件里加一个小钩子，第一次会先备份原文件；关掉就删除钩子，其他设置不变。</p>
+<ul>
+  <li>Claude Code：<code>~/.claude/settings.json</code></li>
+  <li>WorkBuddy：<code>~/.workbuddy/settings.json</code>（钩子带参数 <code>--agent=workbuddy</code>）</li>
+</ul>
+<p>钩子只把事件交给本机正在运行的小组件。小组件没开时钩子什么都不做，助手照常工作。
+   在气泡里没回答或超时（默认 300 秒，可改），问题就留给助手自己的窗口。</p>
+<div class="note"><b>换了安装位置要重启一次小组件。</b>钩子里写的是 Python 和脚本的完整路径。
+   把项目移到别的文件夹后，从新位置启动一次，她会自动把钩子更新成新路径。
+   WorkBuddy 里正在运行的任务，可能要重启 WorkBuddy 后才会用上新钩子。</div>
+
+<h2 id="skins">皮肤</h2>
+<p>一个皮肤是 <code>ui/skins/&lt;id&gt;/</code> 下的一个文件夹：一张精灵图 <code>sheet.png</code>、缩略图 <code>thumb.png</code>
+   和描述它的 <code>skin.json</code>。</p>
+<pre><code>{
+  "name": "My Character", "sheet": "sheet.png", "thumb": "thumb.png",
+  "cell": [192, 208],
+  "display_height": 116,
+  "anims": { "idle": {"row": 0, "frames": [0], "fps": 4, "loop": true} }
+}</code></pre>
+<p>用到的动画：<code>idle</code>、<code>blink</code>、<code>fidget</code>、<code>walk_left</code>、<code>walk_right</code>、<code>wave</code>、
+   <code>jump</code>、<code>doze</code>、<code>sleep</code>、<code>wake</code>、<code>cheer</code>、<code>think</code>、<code>shy</code>、
+   <code>look_left</code>、<code>look_right</code>、<code>look_around</code>。缺少的会直接跳过。</p>
+<div class="tablewrap"><table>
+  <tr><th>什么时候</th><th>她会</th></tr>
+  <tr><td>空闲</td><td>眨眼、小动作、四处看</td></tr>
+  <tr><td>鼠标在气泡上</td><td>转过去跟你一起看</td></tr>
+  <tr><td>任务运行中</td><td>思考</td></tr>
+  <tr><td>来了一条汇报</td><td>送达：跳起来欢呼；新包裹：欢呼；失败：害羞</td></tr>
+  <tr><td>被戳</td><td>挥手、跳、欢呼或害羞，再说一句话</td></tr>
+  <tr><td>被拖动</td><td>朝拖动的方向跑</td></tr>
+  <tr><td>5 分钟没动鼠标</td><td>打瞌睡，动一下鼠标就醒</td></tr>
+</table></div>
+<h3>自定义皮肤（图像 AI）</h3>
+<p>设置 → 🎨 自定义皮肤：填名字和描述，可选一张参考图，选一个图像 AI 并填它的 API 密钥（加密保存）。
+   大约 10 次图像请求生成一个基础角色和每种动画的一行姿势，小组件会自动去背景、切割对齐并换上新皮肤。</p>
+<p>支持：OpenAI gpt-image（或兼容接口）、Google Gemini、通义千问、MiniMax、腾讯混元、Stability AI、Replicate、fal.ai。</p>
+<div class="note">只提交你有权分享的皮肤素材。</div>
+
+<h2 id="privacy">隐私</h2>
+<ul>
+  <li><b>密码和密钥</b>：Gmail 应用专用密码和图像 AI 密钥加密保存在 <code>secrets.vault</code> 里。
+      Windows 用系统的数据保护（只有你的 Windows 账户在这台电脑上能解开），使用前要求 Windows Hello；
+      macOS 用与本机硬件绑定的密钥，使用前要求 Touch ID。</li>
+  <li><b>邮件</b>：主题、发件人和预览只留在内存里；硬盘上只存消息编号的哈希。分类在本机完成，不发送到任何地方。</li>
+  <li><b>AI 助手</b>：钩子只和本机的小组件通信。Windows 上是只接受本机连接的端口，并且要出示保存在你数据文件夹里的密码。
+      助手的总结和问题只留在气泡里，确认后即消失，不保存。</li>
+  <li><b>GitHub</b>：通过 <code>gh</code> 查询，登录信息由 <code>gh</code> 自己保管。本机副本只用 <code>git status</code> 读取，不修改。</li>
+  <li><b>USB 检查</b>：只把厂商和产品名（不含序列号）发给 DuckDuckGo 搜索驱动；不下载、不安装任何更新。</li>
+  <li><b>数据位置</b>：快递记录、设置和日志都在数据文件夹里，不在这个仓库里。</li>
+</ul>
+
+<h2 id="tracking">能识别的快递单号</h2>
+<div class="tablewrap"><table>
+  <tr><th>承运商</th><th>格式</th></tr>
+  <tr><td>UPS</td><td><code>1Z</code> + 16 个字符</td></tr>
+  <tr><td>Amazon</td><td><code>TBA</code> + 12 位数字</td></tr>
+  <tr><td>USPS</td><td>以 92 到 95 开头的 22 或 26 位数字，或 <code>XX123456789US</code></td></tr>
+  <tr><td>FedEx</td><td>12、15、20 或 22 位数字（仅当邮件里提到 FedEx）</td></tr>
+</table></div>
+<p>很多 Amazon 邮件只有"跟踪包裹"按钮，没有单号。这种请在气泡里手动添加（鼠标移到她身上 → 📦）。</p>
+
+<h2 id="trouble">常见问题</h2>
+<div class="tablewrap"><table>
+  <tr><th>现象</th><th>怎么办</th></tr>
+  <tr><td>启动就崩溃，提示<br>"文件名或扩展名太长"</td><td>项目路径太深。移到较短的路径（如 <code>D:\ParcelWidget</code>），重新运行 <code>install.bat</code>。</td></tr>
+  <tr><td>她身后有一块灰色方框</td><td>更新到包含 <code>wintray.py</code> 透明窗口修复的版本。仍然出现的话，更新 WebView2 运行时（随 Microsoft Edge 更新）。</td></tr>
+  <tr><td>找不到托盘图标</td><td>可能收在时钟旁的 <code>^</code> 箭头里，把它拖出来。</td></tr>
+  <tr><td>快递显示"被拦截"或"没有数据"</td><td>设置 → 快递里换一个浏览器，或取消"在后台运行浏览器"。</td></tr>
+  <tr><td>AI 助手的通知不来了</td><td>确认小组件在运行、设置里"关注"是打开的。换过安装位置的话，从新位置重启一次小组件。</td></tr>
+  <tr><td>WorkBuddy 报钩子脚本<br>"No such file"</td><td>小组件是从商店版 Claude 桌面应用里启动的。那样启动时，Windows 会把它的数据文件夹重定向到 Claude 的私有目录，别的程序看不到。
+      退出小组件，双击 <code>start.bat</code> 从外面启动一次即可。</td></tr>
+  <tr><td>想看日志</td><td>设置 → 📝 日志，或数据文件夹里的 <code>widget.log</code>。</td></tr>
+</table></div>
+<p>调试单个单号（先退出小组件）：</p>
+<pre><code>.venv\Scripts\python.exe debug_track.py 1Z999AA10123456784 --browser firefox</code></pre>
+<p>运行测试：</p>
+<pre><code>.venv\Scripts\python.exe -m pytest test_parser.py</code></pre>
+
+<h2 id="layout">项目结构</h2>
+<div class="tablewrap"><table>
+  <tr><th>文件</th><th>作用</th></tr>
+  <tr><td><code>app.py</code></td><td>窗口、调度循环、页面与 Python 之间的接口</td></tr>
+  <tr><td><code>core.py</code></td><td>路径、配置、日志、密码、皮肤、尺寸预设</td></tr>
+  <tr><td><code>plat.py</code></td><td>两个平台的小差异：打开文件、文件锁、PowerShell、屏幕工作区</td></tr>
+  <tr><td><code>features/</code></td><td>她的各项任务：<code>parcels</code>、<code>mail</code>、<code>claude</code>、<code>codex</code>、<code>workbuddy</code>、
+      <code>github</code>、<code>sysmon</code>、<code>usb</code>、<code>poke</code>；两个气泡对话共用 <code>chat.py</code>。
+      怎么新增一项见 <code>features/__init__.py</code></td></tr>
+  <tr><td><code>claude_hook.py</code></td><td>AI 助手的钩子：把事件交给小组件，把你的回答带回去</td></tr>
+  <tr><td><code>wintray.py</code> / <code>menubar.py</code></td><td>Windows 托盘图标 / macOS 菜单栏图标，以及右键菜单</td></tr>
+  <tr><td><code>menus.py</code></td><td>菜单内容（数据形式）</td></tr>
+  <tr><td><code>reports.py</code></td><td>气泡里待确认的汇报</td></tr>
+  <tr><td><code>vault.py</code></td><td>加密保存的密码和密钥</td></tr>
+  <tr><td><code>instance.py</code></td><td>多副本：每个副本各自的数据文件夹</td></tr>
+  <tr><td><code>power.py</code></td><td>电脑的睡眠与唤醒</td></tr>
+  <tr><td><code>mail_scanner.py</code> / <code>mailread.py</code></td><td>Gmail 扫描 / 读取本机邮件和 Outlook</td></tr>
+  <tr><td><code>tracking_parser.py</code> / <code>tracker.py</code> / <code>db.py</code></td><td>单号识别 / 用 Playwright 查 parcelsapp / SQLite 存储</td></tr>
+  <tr><td><code>usbscan_win.py</code> / <code>usbscan.py</code></td><td>USB 设备与驱动（Windows / macOS）</td></tr>
+  <tr><td><code>winprint.py</code> / <code>airprint.py</code></td><td>打印机（Windows / macOS）</td></tr>
+  <tr><td><code>driverinfo.py</code></td><td>USB 检查的联网查询</td></tr>
+  <tr><td><code>skinmaker/</code></td><td>自定义皮肤生成</td></tr>
+  <tr><td><code>ui/</code></td><td><code>index.html</code>（角色、气泡、悬停按钮）、<code>settings.html</code>（设置窗口）、<code>i18n.js</code>（中英文文字）、<code>skins/</code></td></tr>
+  <tr><td><code>packaging/</code></td><td>打包 Windows 应用和 macOS DMG（PyInstaller）</td></tr>
+  <tr><td><code>*.bat</code> / <code>*.command</code></td><td>Windows / macOS 的安装、启动、取消自启动脚本</td></tr>
+</table></div>
+
+<footer>
+  Parcel Widget · MIT 许可 · <a href="https://github.com/cxlgo64/ParcelWidget">github.com/cxlgo64/ParcelWidget</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

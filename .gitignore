@@ -50,3 +50,6 @@ local_storage/
 
 # machine-specific login helpers (contain absolute C:\Users\... paths)
 CodeBuddy-*.cmd
+
+# WorkBuddy's own notes about this project (local paths and environment details)
+.workbuddy/
